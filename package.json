@@ -1,0 +1,19 @@
+{
+  "name": "advanced-automations",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --watch --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/server.js",
+    "mockups": "node --env-file-if-exists=.env scripts/generate-mockups.mjs",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "express": "^4.22.3",
+    "stripe": "^22.6.2"
+  },
+  "type": "module",
+  "private": true
+}
