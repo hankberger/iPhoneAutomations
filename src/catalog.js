@@ -10,6 +10,8 @@ export const CATEGORIES = ['Writing', 'Productivity', 'Capture', 'Everyday'];
 export const AUTOMATIONS = [
   {
     slug: 'summarize-anything',
+    icon: 'doc',
+    color: 'orange',
     name: 'Summarize Anything',
     tagline: 'Share any article, email or note and get a three-line summary.',
     category: 'Productivity',
@@ -27,6 +29,8 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'reply-drafter',
+    icon: 'chat',
+    color: 'violet',
     name: 'Reply Drafter',
     tagline: 'Copy a message, run it, and get a warm, concise reply on your clipboard.',
     category: 'Writing',
@@ -44,6 +48,8 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'tone-shifter',
+    icon: 'wand',
+    color: 'indigo',
     name: 'Tone Shifter',
     tagline: 'Rewrite selected text as friendlier, firmer, or more formal.',
     category: 'Writing',
@@ -61,6 +67,8 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'voice-to-notes',
+    icon: 'mic',
+    color: 'green',
     name: 'Voice to Notes',
     tagline: 'Talk for a minute. Get a tidy note with action items in Apple Notes.',
     category: 'Capture',
@@ -77,6 +85,8 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'smart-reminders',
+    icon: 'bell',
+    color: 'yellow',
     name: 'Smart Reminders',
     tagline: 'Paste a messy list or email and get real reminders with due dates.',
     category: 'Productivity',
@@ -94,6 +104,8 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'receipt-reader',
+    icon: 'receipt',
+    color: 'pink',
     name: 'Receipt Reader',
     tagline: 'Scan a receipt and log merchant, date and total to a spreadsheet row.',
     category: 'Capture',
@@ -111,6 +123,8 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'translate-selection',
+    icon: 'globe',
+    color: 'sky',
     name: 'Translate Selection',
     tagline: 'Natural translation that keeps names, tone and formatting intact.',
     category: 'Everyday',
@@ -128,6 +142,8 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'morning-brief',
+    icon: 'sun',
+    color: 'amber',
     name: 'Morning Brief',
     tagline: 'A two-paragraph plan for your day from your calendar and reminders.',
     category: 'Everyday',

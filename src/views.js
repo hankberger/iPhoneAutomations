@@ -5,8 +5,21 @@ import { TOPUP_AMOUNTS, formatUsd } from './billing.js';
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const e = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
 const date = (ms) => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const cents = (usd) => (usd < 0.01 ? `${+(usd * 100).toFixed(1)}¢` : `${Math.round(usd * 100)}¢`);
 
-const logo = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="currentColor"/><path d="M8 15.5 12 7l4 8.5M9.6 12.5h4.8" stroke="var(--bg)" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const ICONS = {
+  doc: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/>',
+  wand: '<path d="M4 20 15 9M14 4v3M19 9h-3M17.5 5.5 16 7"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+};
+export const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
 
 export function layout({ title, user, body, active = '' }) {
   const nav = (href, label) => `<a href="${href}"${active === href ? ' aria-current="page"' : ''}>${label}</a>`;
@@ -18,24 +31,25 @@ export function layout({ title, user, body, active = '' }) {
 <title>${e(title ? `${title} · Advanced Automations` : 'Advanced Automations: free iPhone automations, powered by AI')}</title>
 <meta name="description" content="Free iPhone Shortcuts automations with pay-as-you-go AI. No subscription.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 <header class="site-header">
   <div class="wrap row">
-    <a class="brand" href="/">${logo}<span>Advanced Automations</span></a>
+    <a class="brand" href="/"><i class="mark"></i><span>Advanced Automations</span></a>
     <nav class="nav">
       ${nav('/automations', 'Automations')}
       ${nav('/pricing', 'Pricing')}
-      ${user ? nav('/account', 'Account') : `${nav('/login', 'Log in')}<a class="btn btn-sm" href="/signup">Get started</a>`}
+      ${user ? `<a class="btn btn-sm" href="/account">Account</a>` : `${nav('/login', 'Log in')}<a class="btn btn-sm" href="/signup">Get started</a>`}
     </nav>
   </div>
 </header>
 <main>${body}</main>
 <footer class="site-footer">
   <div class="wrap row">
-    <span>© ${new Date().getFullYear()} Advanced Automations</span>
-    <span class="muted">iphoneadvanced.com</span>
+    <a class="brand small" href="/"><i class="mark"></i><span>Advanced Automations</span></a>
+    <span class="muted small">© ${new Date().getFullYear()} · iphoneadvanced.com</span>
   </div>
 </footer>
 </body>
@@ -43,81 +57,69 @@ export function layout({ title, user, body, active = '' }) {
 }
 
 const card = (a) => `
-  <a class="card" href="/automations/${a.slug}">
-    <div class="card-top"><span class="chip">${e(a.category)}</span><span class="muted small">≈ $${a.typicalCost.toFixed(3)} / run</span></div>
+  <a class="card c-${a.color}" href="/automations/${a.slug}">
+    <span class="ic">${icon(a.icon)}</span>
     <h3>${e(a.name)}</h3>
     <p>${e(a.tagline)}</p>
-    <span class="card-foot small muted">${e(a.trigger)}</span>
+    <span class="meta"><span>${e(a.trigger)}</span><span>~${cents(a.typicalCost)}</span></span>
   </a>`;
 
-const phone = `
-  <div class="phone" aria-hidden="true">
-    <div class="phone-screen">
-      <div class="phone-notch"></div>
-      <div class="sc-tile t1"><span>Summarize Anything</span><small>Share Sheet</small></div>
-      <div class="sc-tile t2"><span>Reply Drafter</span><small>Back Tap</small></div>
-      <div class="sc-tile t3"><span>Voice to Notes</span><small>Action Button</small></div>
-      <div class="sc-tile t4"><span>Morning Brief</span><small>7:00 AM</small></div>
-      <div class="sc-result">
-        <div class="sc-result-head"><span class="dot"></span>Summarize Anything</div>
-        <p>Q3 launch moves to Oct 14. Design review Thursday. Budget unchanged.</p>
-        <small>Sonnet 5 · $0.004</small>
-      </div>
-    </div>
-  </div>`;
+const tile = (a, extra = '') => `<a class="tile c-${a.color}${extra}" href="/automations/${a.slug}">${icon(a.icon)}<span>${e(a.name)}</span></a>`;
 
-export function landing({ user, heroImage }) {
-  const featured = AUTOMATIONS.slice(0, 6).map(card).join('');
+export function landing({ user }) {
+  const [sum, reply, tone, voice, remind, receipt, translate, brief] = AUTOMATIONS;
   return layout({
     user,
     body: `
 <section class="hero wrap">
-  <div class="hero-copy">
-    <p class="eyebrow">Free Shortcuts · Pay-as-you-go AI</p>
-    <h1>Your iPhone, <span class="soft">quietly smarter.</span></h1>
-    <p class="lede">Ready-made automations for the Shortcuts app. Every automation is free. You only pay for the AI it uses, a fraction of a cent per run, from a balance you top up when you like.</p>
-    <div class="cta">
-      <a class="btn" href="${user ? '/account' : '/signup'}">${user ? 'Go to your account' : 'Create a free account'}</a>
-      <a class="btn btn-ghost" href="/automations">Browse automations</a>
-    </div>
-    <p class="small muted">No subscription. Credit never expires.</p>
-  </div>
-  ${heroImage ? `<img class="hero-img" src="${heroImage}" alt="Advanced Automations running on an iPhone">` : phone}
-</section>
-
-<section class="wrap steps">
-  <div><span class="step-num">1</span><h3>Pick an automation</h3><p>Each one lists the exact Shortcuts actions to add. Most take two minutes.</p></div>
-  <div><span class="step-num">2</span><h3>Add your key</h3><p>Create an API key in your account and paste it into the shortcut once.</p></div>
-  <div><span class="step-num">3</span><h3>Run it anywhere</h3><p>Share Sheet, Back Tap, Action Button or Siri. Usage comes out of your balance.</p></div>
-</section>
-
-<section class="wrap section">
-  <div class="section-head"><h2>Popular automations</h2><a href="/automations">See all →</a></div>
-  <div class="grid">${featured}</div>
-</section>
-
-<section class="wrap section band">
   <div>
-    <h2>Honest, per-run pricing</h2>
-    <p class="muted">We pass through model costs with a simple markup. Most runs cost less than a cent. Top up from $5.</p>
+    <h1>Make your iPhone do the <mark>boring bits.</mark></h1>
+    <p class="lede">Free, ready-made Shortcuts with a little AI inside. Top up a few dollars and each run costs about half a cent.</p>
+    <div class="cta">
+      <a class="btn btn-lg" href="${user ? '/account' : '/signup'}">${user ? 'Go to your account' : 'Get started, it’s free'}</a>
+      <a class="link" href="/automations">Browse automations →</a>
+    </div>
   </div>
-  <a class="btn" href="/pricing">See pricing</a>
+  <div class="tiles" aria-label="Featured automations">
+    ${tile(sum)}${tile(reply, ' tilt-r')}${tile(voice)}
+    ${tile(remind, ' tilt-l')}${tile(receipt)}${tile(translate)}
+    <div class="tile tile-result"><div><b>Summarize Anything</b>Launch moves to Oct 14. Design review Thursday. Budget unchanged.</div><small>Sonnet 5 · $0.004</small></div>
+    ${tile(brief, ' tilt-r')}
+  </div>
+</section>
+
+<section class="wrap section center">
+  <h2>Pick one. Build it in two minutes.</h2>
+  <p class="muted">Every automation lists the exact Shortcuts actions to add.</p>
+  <div class="grid">${[sum, reply, voice, remind, receipt, translate, brief, tone].map(card).join('')}</div>
+</section>
+
+<section class="wrap how">
+  <div><b>1</b><h3>Pick an automation</h3><p>Browse the library and open the steps.</p></div>
+  <div><b>2</b><h3>Paste your key</h3><p>One API key from your account, pasted once.</p></div>
+  <div><b>3</b><h3>Run it anywhere</h3><p>Share Sheet, Back Tap, Action Button or Siri.</p></div>
+</section>
+
+<section class="wrap stats">
+  <div><b>$0</b><p>for every automation, forever</p></div>
+  <div><b>~½¢</b><p>typical cost of one run</p></div>
+  <div><b>$5</b><p>minimum top-up, credit never expires</p></div>
 </section>`,
   });
 }
 
 export function catalog({ user, category }) {
   const list = category ? AUTOMATIONS.filter((a) => a.category === category) : AUTOMATIONS;
-  const tab = (c, label) => `<a class="tab" href="/automations${c ? `?category=${encodeURIComponent(c)}` : ''}"${(category || '') === c ? ' aria-current="true"' : ''}>${label}</a>`;
+  const chip = (c, label) => `<a class="chip" href="/automations${c ? `?category=${encodeURIComponent(c)}` : ''}"${(category || '') === c ? ' aria-current="true"' : ''}>${label}</a>`;
   return layout({
     title: 'Automations',
     user,
     active: '/automations',
     body: `
-<section class="wrap page-head">
+<section class="wrap page-head center">
   <h1>Automations</h1>
   <p class="lede">All free. Each one runs in the Shortcuts app and calls our API with your key.</p>
-  <div class="tabs">${tab('', 'All')}${CATEGORIES.map((c) => tab(c, c)).join('')}</div>
+  <div class="chips">${chip('', 'All')}${CATEGORIES.map((c) => chip(c, c)).join('')}</div>
 </section>
 <section class="wrap"><div class="grid">${list.map(card).join('')}</div></section>`,
   });
@@ -125,7 +127,7 @@ export function catalog({ user, category }) {
 
 export function automationDetail({ user, a, apiUrl }) {
   const steps = a.steps.map((s, i) => `
-    <li><span class="step-n">${i + 1}</span><div><strong>${e(s.action)}</strong>${s.detail ? `<p class="muted">${e(s.detail.replace('{{API_URL}}', apiUrl))}</p>` : ''}</div></li>`).join('');
+    <li><span class="step-n">${i + 1}</span><div><strong>${e(s.action)}</strong>${s.detail ? `<p>${e(s.detail.replace('{{API_URL}}', apiUrl))}</p>` : ''}</div></li>`).join('');
   const body = JSON.stringify({ prompt: a.prompt, input: '<Shortcut Input>', model: a.model }, null, 2);
   return layout({
     title: a.name,
@@ -133,27 +135,29 @@ export function automationDetail({ user, a, apiUrl }) {
     active: '/automations',
     body: `
 <section class="wrap detail">
-  <a class="small muted" href="/automations">← All automations</a>
-  <div class="detail-head">
-    <span class="chip">${e(a.category)}</span>
-    <h1>${e(a.name)}</h1>
-    <p class="lede">${e(a.tagline)}</p>
-    <dl class="facts">
-      <div><dt>Runs from</dt><dd>${e(a.trigger)}</dd></div>
-      <div><dt>Model</dt><dd>${e(MODELS[a.model].label)}</dd></div>
-      <div><dt>Typical cost</dt><dd>≈ $${a.typicalCost.toFixed(3)} per run</dd></div>
-    </dl>
+  <a class="link small" href="/automations">← All automations</a>
+  <div class="detail-head c-${a.color}">
+    <span class="big-ic">${icon(a.icon)}</span>
+    <div>
+      <h1>${e(a.name)}</h1>
+      <p class="lede">${e(a.tagline)}</p>
+      <dl class="facts">
+        <div><dt>Runs from</dt><dd>${e(a.trigger)}</dd></div>
+        <div><dt>Model</dt><dd>${e(MODELS[a.model].label)}</dd></div>
+        <div><dt>Typical cost</dt><dd>~${cents(a.typicalCost)} per run</dd></div>
+      </dl>
+    </div>
   </div>
   <div class="detail-grid">
     <div>
       <h2>Build it in Shortcuts</h2>
       <ol class="steps-list">${steps}</ol>
     </div>
-    <aside class="panel">
+    <aside class="panel dark">
       <h3>Request body</h3>
       <pre><code>${e(body)}</code></pre>
-      <p class="small muted">Set the method to POST, Request Body to JSON, and add the header <code>Authorization: Bearer YOUR_KEY</code>.</p>
-      ${user ? '<a class="btn btn-block" href="/account#keys">Get your API key</a>' : '<a class="btn btn-block" href="/signup">Create an account to get a key</a>'}
+      <p class="small">Method POST, Request Body JSON, and the header <code>Authorization: Bearer YOUR_KEY</code>.</p>
+      ${user ? '<a class="btn btn-light btn-block" href="/account#keys">Get your API key</a>' : '<a class="btn btn-light btn-block" href="/signup">Create an account to get a key</a>'}
     </aside>
   </div>
 </section>`,
@@ -163,21 +167,31 @@ export function automationDetail({ user, a, apiUrl }) {
 export function pricing({ user }) {
   const rows = Object.entries(MODELS).map(([id, m]) => {
     const p = retailPrice(id);
-    return `<tr><td>${e(m.label)}<div class="small muted mono">${id}</div></td><td>$${p.input.toFixed(2)}</td><td>$${p.output.toFixed(2)}</td></tr>`;
+    return `<tr><td><strong>${e(m.label)}</strong><div class="small muted">${id}</div></td><td class="num">$${p.input.toFixed(2)}</td><td class="num">$${p.output.toFixed(2)}</td></tr>`;
   }).join('');
   return layout({
     title: 'Pricing',
     user,
     active: '/pricing',
     body: `
-<section class="wrap page-head narrow">
-  <h1>Pricing</h1>
-  <p class="lede">Automations are free. AI usage is billed per token from your prepaid balance. Credit never expires.</p>
-  <table class="table">
-    <thead><tr><th>Model</th><th>Input / 1M tokens</th><th>Output / 1M tokens</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <p class="small muted">A typical automation run uses a few hundred tokens, which is usually well under one cent. Top-ups: ${TOPUP_AMOUNTS.map((d) => `$${d}`).join(', ')}.</p>
+<section class="wrap page-head center">
+  <h1>Simple pricing</h1>
+  <p class="lede">Automations are free. AI usage comes out of a balance you top up. No subscription, and credit never expires.</p>
+</section>
+<section class="wrap narrow">
+  <div class="stats">
+    <div><b>$0</b><p>for every automation</p></div>
+    <div><b>~½¢</b><p>typical run</p></div>
+    <div><b>$5</b><p>smallest top-up</p></div>
+  </div>
+  <div class="panel">
+    <h2>Per-token rates</h2>
+    <table class="table">
+      <thead><tr><th>Model</th><th class="num">Input / 1M tokens</th><th class="num">Output / 1M tokens</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="small muted">A typical run uses a few hundred tokens. Top-ups: ${TOPUP_AMOUNTS.map((d) => `$${d}`).join(', ')}.</p>
+  </div>
 </section>`,
   });
 }
@@ -189,6 +203,7 @@ export function authPage({ mode, error, email = '', next = '' }) {
     active: isLogin ? '/login' : '',
     body: `
 <section class="wrap auth">
+  <div class="auth-tiles" aria-hidden="true">${AUTOMATIONS.slice(0, 4).map((a) => `<span class="mini c-${a.color}">${icon(a.icon)}</span>`).join('')}</div>
   <form class="auth-card" method="post" action="/${mode}">
     <h1>${isLogin ? 'Welcome back' : 'Create your account'}</h1>
     <p class="muted">${isLogin ? 'Log in to manage your balance and keys.' : 'Free forever. Add credit only when you want AI.'}</p>
@@ -196,7 +211,7 @@ export function authPage({ mode, error, email = '', next = '' }) {
     <input type="hidden" name="next" value="${e(next)}">
     <label>Email<input name="email" type="email" autocomplete="email" required value="${e(email)}"></label>
     <label>Password<input name="password" type="password" autocomplete="${isLogin ? 'current-password' : 'new-password'}" minlength="10" required></label>
-    <button class="btn btn-block" type="submit">${isLogin ? 'Log in' : 'Create account'}</button>
+    <button class="btn btn-lg btn-block" type="submit">${isLogin ? 'Log in' : 'Create account'}</button>
     <p class="small muted center">${isLogin ? 'New here? <a href="/signup">Create an account</a>' : 'Have an account? <a href="/login">Log in</a>'}</p>
   </form>
 </section>`,
@@ -212,9 +227,10 @@ export function account({ user, keys, history, newKey, notice, billingEnabled, i
     </form>`).join('');
   const keyRows = keys.length ? keys.map((k) => `
     <li class="key-row">
-      <div><strong>${e(k.name)}</strong><div class="small muted mono">${e(k.prefix)}…  ·  created ${date(k.created_at)}${k.last_used_at ? `  ·  last used ${date(k.last_used_at)}` : ''}</div></div>
-      <form method="post" action="/account/keys/${k.id}/revoke"><input type="hidden" name="csrf" value="${e(user.csrf)}"><button class="btn btn-ghost btn-sm" type="submit">Revoke</button></form>
-    </li>`).join('') : '<li class="muted small">No keys yet.</li>';
+      <span class="mini c-violet">${icon('key')}</span>
+      <div class="grow"><strong>${e(k.name)}</strong><div class="small muted">${e(k.prefix)}… · created ${date(k.created_at)}${k.last_used_at ? ` · last used ${date(k.last_used_at)}` : ''}</div></div>
+      <form method="post" action="/account/keys/${k.id}/revoke"><input type="hidden" name="csrf" value="${e(user.csrf)}"><button class="btn btn-soft btn-sm" type="submit">Revoke</button></form>
+    </li>`).join('') : '<li class="muted small empty">No keys yet. Create one for each device.</li>';
   const historyRows = history.length ? history.map((h) => `
     <tr><td>${date(h.created_at)}</td><td>${e(h.description)}</td><td class="num ${h.amount_micros > 0 ? 'pos' : ''}">${h.amount_micros > 0 ? '+' : '−'}${formatUsd(Math.abs(h.amount_micros), Math.abs(h.amount_micros) < 10_000 ? 4 : 2)}</td></tr>`).join('')
     : '<tr><td colspan="3" class="muted small">Nothing yet. Top up to get started.</td></tr>';
@@ -226,31 +242,31 @@ export function account({ user, keys, history, newKey, notice, billingEnabled, i
     body: `
 <section class="wrap page-head">
   <div class="row between">
-    <div><h1>Account</h1><p class="muted">${e(user.email)}</p></div>
-    <form method="post" action="/logout"><input type="hidden" name="csrf" value="${e(user.csrf)}"><button class="btn btn-ghost btn-sm" type="submit">Log out</button></form>
+    <div><h1>Hi there</h1><p class="muted">${e(user.email)}</p></div>
+    <form method="post" action="/logout"><input type="hidden" name="csrf" value="${e(user.csrf)}"><button class="btn btn-soft btn-sm" type="submit">Log out</button></form>
   </div>
   ${notice ? `<p class="notice ${notice.tone}">${e(notice.text)}</p>` : ''}
 </section>
 <section class="wrap account-grid">
   <div class="panel balance">
-    <span class="small muted">Balance</span>
+    <span class="label">Balance</span>
     <div class="big">${formatUsd(user.balance_micros)}</div>
-    <span class="small muted">Add credit</span>
+    <span class="label">Add credit</span>
     <div class="amounts">${topups}</div>
-    <p class="small muted">${billingEnabled ? 'Secure checkout by Stripe. Credit never expires.' : 'Payments are not configured on this server yet.'}</p>
+    <p class="small">${billingEnabled ? 'Secure checkout by Stripe. Credit never expires.' : 'Payments are not configured on this server yet.'}</p>
   </div>
 
   <div class="panel" id="keys">
     <h2>API keys</h2>
-    <p class="small muted">Paste a key into your shortcut's Authorization header. Keys spend from your balance.</p>
-    ${newKey ? `<div class="newkey"><span class="small">Copy this key now. You won't see it again.</span><code class="mono">${e(newKey)}</code></div>` : ''}
+    <p class="small muted">Paste a key into your shortcut’s Authorization header. Keys spend from your balance.</p>
+    ${newKey ? `<div class="newkey"><span class="small">Copy this key now. You won’t see it again.</span><code>${e(newKey)}</code></div>` : ''}
     <ul class="keys">${keyRows}</ul>
     <form class="inline-form" method="post" action="/account/keys">
       <input type="hidden" name="csrf" value="${e(user.csrf)}">
       <input name="name" placeholder="Key name, e.g. My iPhone" maxlength="60" required>
       <button class="btn btn-sm" type="submit">Create key</button>
     </form>
-    <p class="small muted">Endpoint: <code>${e(apiUrl)}</code>${inferenceEnabled ? '' : ' (inference not configured on this server yet)'}</p>
+    <p class="small muted">Endpoint <code>${e(apiUrl)}</code>${inferenceEnabled ? '' : ' (inference not configured on this server yet)'}</p>
   </div>
 
   <div class="panel wide">
@@ -263,5 +279,5 @@ export function account({ user, keys, history, newKey, notice, billingEnabled, i
 
 export const notFound = ({ user }) => layout({
   title: 'Not found', user,
-  body: '<section class="wrap page-head narrow"><h1>Not found</h1><p class="lede">That page does not exist. <a href="/automations">Browse automations</a>.</p></section>',
+  body: '<section class="wrap page-head center"><h1>Nothing here</h1><p class="lede">That page does not exist. <a href="/automations">Browse automations</a>.</p></section>',
 });
