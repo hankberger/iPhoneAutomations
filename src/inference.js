@@ -1,48 +1,51 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { MICROS, formatUsd } from './billing.js';
 
-// Anthropic list prices in USD per million tokens. We charge list price times MARKUP.
+// Cloudflare Workers AI text models we resell, with Cloudflare's USD price per million tokens.
+// Check these against developers.cloudflare.com/workers-ai/platform/pricing before launch.
 export const MODELS = {
-  'claude-opus-5': { label: 'Opus 5', input: 5, output: 25 },
-  'claude-sonnet-5': { label: 'Sonnet 5', input: 2, output: 10 },
-  'claude-haiku-4-5': { label: 'Haiku 4.5', input: 1, output: 5 },
+  '@cf/meta/llama-3.3-70b-instruct-fp8-fast': { label: 'Llama 3.3 70B', input: 0.293, output: 2.253 },
+  '@cf/mistralai/mistral-small-3.1-24b-instruct': { label: 'Mistral Small 3.1', input: 0.351, output: 0.555 },
+  '@cf/meta/llama-3.1-8b-instruct-fp8-fast': { label: 'Llama 3.1 8B', input: 0.045, output: 0.384 },
 };
-export const DEFAULT_MODEL = 'claude-opus-5';
-const MAX_TOKENS_CAP = 16000;
-const MAX_INPUT_CHARS = 200_000;
+export const DEFAULT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+const DEFAULT_MAX_TOKENS = 1024;
+const MAX_TOKENS_CAP = 4096;
+const MAX_BODY_CHARS = 200_000;
 
 export const markup = () => Number(process.env.MARKUP || 1.5);
 
+// Micro-dollars charged to the user: tokens x $/M x markup, and 1 micro-dollar = $1/M.
 export function costMicros(model, inputTokens, outputTokens) {
   const p = MODELS[model] ?? MODELS[DEFAULT_MODEL];
-  return Math.ceil(((inputTokens * p.input + outputTokens * p.output) * markup()));
+  return Math.ceil((inputTokens * p.input + outputTokens * p.output) * markup());
 }
 
-// Retail price per million tokens, for display.
 export const retailPrice = (model) => ({
   input: MODELS[model].input * markup(),
   output: MODELS[model].output * markup(),
 });
 
-export function createInference(billing, { client } = {}) {
-  const anthropic = client ?? (process.env.ANTHROPIC_API_KEY ? new Anthropic() : null);
+export function createInference(billing, {
+  fetch: fetchImpl = globalThis.fetch,
+  accountId = process.env.CLOUDFLARE_ACCOUNT_ID,
+  apiToken = process.env.CLOUDFLARE_API_TOKEN,
+} = {}) {
+  const enabled = Boolean(accountId && apiToken);
+  const runUrl = (model) => `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
 
-  // Shortcuts-friendly body: { prompt, input?, system?, model?, max_tokens? } -> { text, ... }
-  async function generate(user, body) {
-    if (!anthropic) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
+  // Reserves the worst case, calls Cloudflare, then charges actual usage and refunds the rest.
+  async function meteredRun(user, model, payload) {
+    if (!enabled) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
+    if (!MODELS[model]) return { status: 400, json: { error: `Unsupported model. Use one of: ${Object.keys(MODELS).join(', ')}` } };
+    if (payload.stream) return { status: 400, json: { error: 'Streaming is not supported yet. Remove "stream": true.' } };
 
-    const model = body.model ?? DEFAULT_MODEL;
-    if (!MODELS[model]) return { status: 400, json: { error: `Unknown model. Use one of: ${Object.keys(MODELS).join(', ')}` } };
-    const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
-    if (!prompt) return { status: 400, json: { error: 'Send a "prompt" string.' } };
-    const input = typeof body.input === 'string' ? body.input : '';
-    const system = typeof body.system === 'string' ? body.system : undefined;
-    const content = input ? `${prompt}\n\n<input>\n${input}\n</input>` : prompt;
-    if (content.length + (system?.length ?? 0) > MAX_INPUT_CHARS) return { status: 413, json: { error: 'Input is too long.' } };
-    const maxTokens = Math.min(Math.max(Number(body.max_tokens) || MAX_TOKENS_CAP, 1), MAX_TOKENS_CAP);
+    const requested = Number(payload.max_tokens);
+    const maxTokens = Math.min(Number.isFinite(requested) && requested > 0 ? requested : DEFAULT_MAX_TOKENS, MAX_TOKENS_CAP);
+    const body = JSON.stringify({ ...payload, max_tokens: maxTokens, stream: false });
+    if (body.length > MAX_BODY_CHARS) return { status: 413, json: { error: 'Request is too large.' } };
 
-    // Worst case: every character is a token, and the model uses all of max_tokens.
-    const reserved = costMicros(model, content.length + (system?.length ?? 0) + 50, maxTokens);
+    // A token is never shorter than one character, so body length bounds the input tokens.
+    const reserved = costMicros(model, body.length, maxTokens);
     if (!billing.reserve(user.id, reserved)) {
       return {
         status: 402,
@@ -50,46 +53,66 @@ export function createInference(billing, { client } = {}) {
       };
     }
 
-    let response;
+    let upstream;
+    let data;
     try {
-      const params = {
-        model,
-        max_tokens: maxTokens,
-        ...(system && { system }),
-        messages: [{ role: 'user', content }],
-      };
-      // Opus 5 can decline some requests; let the API retry on a fallback model instead of failing.
-      response = model === 'claude-opus-5'
-        ? await anthropic.beta.messages.create({ ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
-        : await anthropic.messages.create(params);
-    } catch (err) {
+      upstream = await fetchImpl(runUrl(model), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+        body,
+      });
+      data = await upstream.json();
+    } catch {
       billing.settle(user.id, reserved, 0, {});
-      if (err instanceof Anthropic.RateLimitError) return { status: 429, json: { error: 'Upstream is busy. Try again shortly.' } };
-      if (err instanceof Anthropic.APIConnectionError) return { status: 502, json: { error: 'Could not reach the model provider.' } };
-      if (err instanceof Anthropic.APIError) return { status: 502, json: { error: `Model provider error (${err.status}).` } };
-      throw err;
+      return { status: 502, json: { error: 'Could not reach the model provider.' } };
     }
 
-    const servedModel = MODELS[response.model] ? response.model : model;
-    const { input_tokens, output_tokens } = response.usage;
-    const actual = Math.min(costMicros(servedModel, input_tokens, output_tokens), reserved);
+    if (!upstream.ok || data?.success === false) {
+      billing.settle(user.id, reserved, 0, {});
+      const status = upstream.status === 429 ? 429 : upstream.status >= 400 && upstream.status < 500 ? 400 : 502;
+      return { status, json: { error: 'Model provider rejected the request.', errors: data?.errors ?? [] } };
+    }
+
+    const result = data.result ?? {};
+    const text = typeof result.response === 'string' ? result.response : '';
+    // Most Workers AI text models report usage; estimate at ~4 characters per token when one does not.
+    const inputTokens = result.usage?.prompt_tokens ?? Math.ceil(body.length / 4);
+    const outputTokens = result.usage?.completion_tokens ?? Math.ceil(JSON.stringify(result.response ?? '').length / 4);
+    const actual = Math.min(costMicros(model, inputTokens, outputTokens), reserved);
     billing.settle(user.id, reserved, actual, {
-      description: `${MODELS[servedModel].label}: ${input_tokens} in / ${output_tokens} out`,
-      model: servedModel, input_tokens, output_tokens,
+      description: `${MODELS[model].label}: ${inputTokens} in / ${outputTokens} out`,
+      model, input_tokens: inputTokens, output_tokens: outputTokens,
     });
 
-    const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-    const out = {
+    return {
+      status: 200,
+      result,
       text,
-      model: servedModel,
-      stop_reason: response.stop_reason,
-      usage: { input_tokens, output_tokens },
-      cost_usd: actual / MICROS,
-      balance_usd: billing.balance(user.id) / MICROS,
+      billing: { cost_usd: actual / MICROS, balance_usd: billing.balance(user.id) / MICROS, usage: { input_tokens: inputTokens, output_tokens: outputTokens } },
     };
-    if (response.stop_reason === 'refusal') return { status: 422, json: { ...out, error: 'The model declined this request.' } };
-    return { status: 200, json: out };
   }
 
-  return { enabled: Boolean(anthropic), generate };
+  // Shortcuts-friendly: { prompt, input?, system?, model?, max_tokens? } -> { text, ... }
+  async function generate(user, body) {
+    const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+    if (!prompt) return { status: 400, json: { error: 'Send a "prompt" string.' } };
+    const model = body.model ?? DEFAULT_MODEL;
+    const input = typeof body.input === 'string' ? body.input : '';
+    const messages = [
+      ...(typeof body.system === 'string' ? [{ role: 'system', content: body.system }] : []),
+      { role: 'user', content: input ? `${prompt}\n\n<input>\n${input}\n</input>` : prompt },
+    ];
+    const out = await meteredRun(user, model, { messages, max_tokens: body.max_tokens });
+    if (out.status !== 200) return out;
+    return { status: 200, json: { text: out.text, model, ...out.billing } };
+  }
+
+  // Pass-through that mirrors Cloudflare's /ai/run/{model} request and response shape.
+  async function run(user, model, body) {
+    const out = await meteredRun(user, model, body ?? {});
+    if (out.status !== 200) return { status: out.status, json: { success: false, ...out.json } };
+    return { status: 200, json: { success: true, result: out.result, billing: out.billing } };
+  }
+
+  return { enabled, generate, run };
 }

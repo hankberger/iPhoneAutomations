@@ -1,3 +1,5 @@
+import { costMicros } from './inference.js';
+
 // Each automation is a Shortcut the user builds from the listed actions.
 // Steps use the real action names from the iOS Shortcuts app.
 const callApi = (extra = '') => ({
@@ -16,8 +18,8 @@ export const AUTOMATIONS = [
     tagline: 'Share any article, email or note and get a three-line summary.',
     category: 'Productivity',
     trigger: 'Share Sheet',
-    model: 'claude-haiku-4-5',
-    typicalCost: 0.004,
+    model: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
+    typicalTokens: [900, 120],
     prompt: 'Summarize the input in three short lines. Lead with the single most important point.',
     steps: [
       { action: 'Receive Text, Articles, URLs from Share Sheet', detail: 'Turn on "Show in Share Sheet" in the shortcut details.' },
@@ -35,8 +37,8 @@ export const AUTOMATIONS = [
     tagline: 'Copy a message, run it, and get a warm, concise reply on your clipboard.',
     category: 'Writing',
     trigger: 'Back Tap or Action Button',
-    model: 'claude-sonnet-5',
-    typicalCost: 0.006,
+    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    typicalTokens: [300, 150],
     prompt: 'Draft a friendly, concise reply to this message. Match its tone. Output only the reply.',
     steps: [
       { action: 'Get Clipboard' },
@@ -54,8 +56,8 @@ export const AUTOMATIONS = [
     tagline: 'Rewrite selected text as friendlier, firmer, or more formal.',
     category: 'Writing',
     trigger: 'Share Sheet',
-    model: 'claude-haiku-4-5',
-    typicalCost: 0.003,
+    model: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
+    typicalTokens: [250, 120],
     prompt: 'Rewrite the input in a {{Chosen Item}} tone. Keep the meaning. Output only the rewrite.',
     steps: [
       { action: 'Receive Text from Share Sheet' },
@@ -73,8 +75,8 @@ export const AUTOMATIONS = [
     tagline: 'Talk for a minute. Get a tidy note with action items in Apple Notes.',
     category: 'Capture',
     trigger: 'Action Button or Siri',
-    model: 'claude-sonnet-5',
-    typicalCost: 0.008,
+    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    typicalTokens: [500, 250],
     prompt: 'Turn this dictation into a clean note: a title line, a short summary, then a checklist of action items.',
     steps: [
       { action: 'Dictate Text', detail: 'Stop Listening: After Pause' },
@@ -91,8 +93,8 @@ export const AUTOMATIONS = [
     tagline: 'Paste a messy list or email and get real reminders with due dates.',
     category: 'Productivity',
     trigger: 'Share Sheet',
-    model: 'claude-sonnet-5',
-    typicalCost: 0.006,
+    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    typicalTokens: [400, 150],
     prompt: 'Extract tasks from the input. Return one task per line as: task | due date in ISO 8601 or blank. No other text.',
     steps: [
       { action: 'Receive Text from Share Sheet' },
@@ -110,8 +112,8 @@ export const AUTOMATIONS = [
     tagline: 'Scan a receipt and log merchant, date and total to a spreadsheet row.',
     category: 'Capture',
     trigger: 'Home Screen',
-    model: 'claude-haiku-4-5',
-    typicalCost: 0.002,
+    model: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
+    typicalTokens: [300, 40],
     prompt: 'From this receipt text, output one CSV line: merchant,date (YYYY-MM-DD),total. No header.',
     steps: [
       { action: 'Take Photo' },
@@ -129,8 +131,8 @@ export const AUTOMATIONS = [
     tagline: 'Natural translation that keeps names, tone and formatting intact.',
     category: 'Everyday',
     trigger: 'Share Sheet',
-    model: 'claude-haiku-4-5',
-    typicalCost: 0.002,
+    model: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
+    typicalTokens: [300, 300],
     prompt: 'Translate the input to {{Language}}. Keep names and formatting. Output only the translation.',
     steps: [
       { action: 'Receive Text from Share Sheet' },
@@ -148,8 +150,8 @@ export const AUTOMATIONS = [
     tagline: 'A two-paragraph plan for your day from your calendar and reminders.',
     category: 'Everyday',
     trigger: 'Personal Automation at 7:00',
-    model: 'claude-opus-5',
-    typicalCost: 0.02,
+    model: '@cf/mistralai/mistral-small-3.1-24b-instruct',
+    typicalTokens: [700, 350],
     prompt: 'Here are my events and reminders for today. Write a calm two-paragraph plan for the day, flagging conflicts.',
     steps: [
       { action: 'Find Calendar Events', detail: 'Start Date is Today' },
@@ -161,5 +163,8 @@ export const AUTOMATIONS = [
     ],
   },
 ];
+
+// Typical cost in USD at current prices and markup, for display.
+for (const a of AUTOMATIONS) a.typicalCost = costMicros(a.model, ...a.typicalTokens) / 1e6;
 
 export const findAutomation = (slug) => AUTOMATIONS.find((a) => a.slug === slug);

@@ -31,15 +31,23 @@ stripe listen --forward-to localhost:8787/webhooks/stripe
 
 Test with card `4242 4242 4242 4242`, any future date and CVC. Use live keys and a dashboard webhook endpoint in production.
 
-## Inference
+## Inference (Cloudflare Workers AI)
 
-Set `ANTHROPIC_API_KEY` and `MARKUP` (default 1.5, so 50% over list price). Supported models and list prices are in `src/inference.js`. Request body:
+Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` (a token with the Workers AI: Read permission) and `MARKUP` (default 1.5, so 50% over Cloudflare's price). Resold models and their prices are in `src/inference.js`; check them against Cloudflare's pricing page before launch.
+
+Users authenticate with their own `aa_live_` key from the account page. The Cloudflare token stays on the server.
+
+**Shortcuts-friendly:** `POST /api/v1/generate`
 
 ```json
-{ "prompt": "Summarize this in three lines.", "input": "<text from the shortcut>", "model": "claude-haiku-4-5" }
+{ "prompt": "Summarize this in three lines.", "input": "<text from the shortcut>", "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast" }
 ```
 
-Response: `{ text, model, usage, cost_usd, balance_usd }`. `402` means not enough credit.
+Response: `{ text, model, cost_usd, balance_usd, usage }`.
+
+**Pass-through:** `POST /api/v1/ai/run/{model}` takes the same body as Cloudflare's `/ai/run/{model}` and returns `{ success, result, billing }`.
+
+Each call reserves its worst-case cost first, then charges actual token usage and refunds the rest. `402` means not enough credit. Streaming is not supported yet, and `max_tokens` defaults to 1024 (cap 4096).
 
 ## Mockups with GPT-Image-2
 

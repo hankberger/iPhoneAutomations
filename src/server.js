@@ -12,10 +12,10 @@ import * as views from './views.js';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
-export function createApp({ db = openDb(), appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 8787}`, inferenceClient } = {}) {
+export function createApp({ db = openDb(), appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 8787}`, inference: inferenceOptions } = {}) {
   const auth = createAuth(db);
   const billing = createBilling(db, { appUrl });
-  const inference = createInference(billing, { client: inferenceClient });
+  const inference = createInference(billing, inferenceOptions);
   const secure = appUrl.startsWith('https://');
   const apiUrl = `${appUrl}/api/v1/generate`;
   const heroImage = fs.existsSync(path.join(root, 'public/img/hero.png')) ? '/img/hero.png' : null;
@@ -149,23 +149,24 @@ export function createApp({ db = openDb(), appUrl = process.env.APP_URL || `http
     res.redirect(303, '/account#keys');
   });
 
-  // Inference API for Shortcuts
-  app.post('/api/v1/generate', express.json({ limit: '1mb' }), async (req, res, next) => {
-    const key = (req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-    const user = auth.apiKeyUser(key);
+  // Inference API for Shortcuts. Callers authenticate with their own aa_live_ key;
+  // our Cloudflare token never leaves the server.
+  const apiUser = (req) => auth.apiKeyUser((req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim());
+  const api = (handler) => async (req, res, next) => {
+    const user = apiUser(req);
     if (!user) return res.status(401).json({ error: 'Missing or invalid API key.' });
     try {
-      const { status, json } = await inference.generate(user, req.body || {});
+      const { status, json } = await handler(user, req);
       res.status(status).json(json);
     } catch (err) {
       next(err);
     }
-  });
-  app.get('/api/v1/balance', (req, res) => {
-    const user = auth.apiKeyUser((req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim());
-    if (!user) return res.status(401).json({ error: 'Missing or invalid API key.' });
-    res.json({ balance_usd: billing.balance(user.id) / 1e6 });
-  });
+  };
+  const json = express.json({ limit: '1mb' });
+  app.post('/api/v1/generate', json, api((user, req) => inference.generate(user, req.body || {})));
+  // Mirrors https://api.cloudflare.com/client/v4/accounts/{id}/ai/run/{model}
+  app.post('/api/v1/ai/run/*', json, api((user, req) => inference.run(user, req.params[0], req.body || {})));
+  app.get('/api/v1/balance', api(async (user) => ({ status: 200, json: { balance_usd: billing.balance(user.id) / 1e6 } })));
 
   app.use((req, res) => res.status(404).send(views.notFound({ user: req.user })));
   app.use((err, req, res, _next) => {

@@ -5,7 +5,7 @@ import { TOPUP_AMOUNTS, formatUsd } from './billing.js';
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const e = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
 const date = (ms) => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-const cents = (usd) => (usd < 0.01 ? `${+(usd * 100).toFixed(1)}¢` : `${Math.round(usd * 100)}¢`);
+const cents = (usd) => (usd * 100 < 0.01 ? '<0.01¢' : `${Number((usd * 100).toPrecision(2))}¢`);
 
 const ICONS = {
   doc: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
@@ -74,7 +74,7 @@ export function landing({ user }) {
 <section class="hero wrap">
   <div>
     <h1>Make your iPhone do the <mark>boring bits.</mark></h1>
-    <p class="lede">Free, ready-made Shortcuts with a little AI inside. Top up a few dollars and each run costs about half a cent.</p>
+    <p class="lede">Free, ready-made Shortcuts with a little AI inside. Top up a few dollars and most runs cost well under a cent.</p>
     <div class="cta">
       <a class="btn btn-lg" href="${user ? '/account' : '/signup'}">${user ? 'Go to your account' : 'Get started, it’s free'}</a>
       <a class="link" href="/automations">Browse automations →</a>
@@ -83,7 +83,7 @@ export function landing({ user }) {
   <div class="tiles" aria-label="Featured automations">
     ${tile(sum)}${tile(reply, ' tilt-r')}${tile(voice)}
     ${tile(remind, ' tilt-l')}${tile(receipt)}${tile(translate)}
-    <div class="tile tile-result"><div><b>Summarize Anything</b>Launch moves to Oct 14. Design review Thursday. Budget unchanged.</div><small>Sonnet 5 · $0.004</small></div>
+    <div class="tile tile-result"><div><b>Summarize Anything</b>Launch moves to Oct 14. Design review Thursday. Budget unchanged.</div><small>Llama 3.3 70B · $0.0006</small></div>
     ${tile(brief, ' tilt-r')}
   </div>
 </section>
@@ -102,7 +102,7 @@ export function landing({ user }) {
 
 <section class="wrap stats">
   <div><b>$0</b><p>for every automation, forever</p></div>
-  <div><b>~½¢</b><p>typical cost of one run</p></div>
+  <div><b>&lt;1¢</b><p>typical cost of one run</p></div>
   <div><b>$5</b><p>minimum top-up, credit never expires</p></div>
 </section>`,
   });
@@ -181,7 +181,7 @@ export function pricing({ user }) {
 <section class="wrap narrow">
   <div class="stats">
     <div><b>$0</b><p>for every automation</p></div>
-    <div><b>~½¢</b><p>typical run</p></div>
+    <div><b>&lt;1¢</b><p>typical run</p></div>
     <div><b>$5</b><p>smallest top-up</p></div>
   </div>
   <div class="panel">
@@ -266,7 +266,7 @@ export function account({ user, keys, history, newKey, notice, billingEnabled, i
       <input name="name" placeholder="Key name, e.g. My iPhone" maxlength="60" required>
       <button class="btn btn-sm" type="submit">Create key</button>
     </form>
-    <p class="small muted">Endpoint <code>${e(apiUrl)}</code>${inferenceEnabled ? '' : ' (inference not configured on this server yet)'}</p>
+    <p class="small muted">Endpoint <code>${e(apiUrl)}</code>, or <code>${e(apiUrl.replace('/generate', '/ai/run/{model}'))}</code> for the raw Cloudflare format${inferenceEnabled ? '' : ' (inference not configured on this server yet)'}</p>
   </div>
 
   <div class="panel wide">
