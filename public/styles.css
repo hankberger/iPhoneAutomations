@@ -88,6 +88,7 @@ svg { display: block; }
 /* Hero */
 .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; padding-top: 56px; }
 mark { background: var(--highlight); color: inherit; border-radius: 14px; padding: 0 10px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.hero h1 { line-height: 1.12; }
 .lede { font-size: 1.18rem; color: var(--muted); max-width: 30em; margin: 24px 0 32px; }
 .center .lede { margin-left: auto; margin-right: auto; }
 .cta { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
