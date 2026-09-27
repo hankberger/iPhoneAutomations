@@ -3,11 +3,13 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createAuth, validateCredentials, rateLimiter, safeEqual, SESSION_COOKIE } from './auth.js';
 import { createBilling } from './billing.js';
 import { createInference, restAi } from './inference.js';
+import { oauthProviders, startFlow, finishFlow } from './oauth.js';
 import { findAutomation, CATEGORIES } from './catalog.js';
 import * as views from './views.js';
 
 const FORM_LIMIT = 20 * 1024;
 const JSON_LIMIT = 1024 * 1024;
+const OAUTH_COOKIE = 'aa_oauth';
 const authLimit = rateLimiter({ windowMs: 15 * 60e3, max: 20 });
 
 const SECURITY_HEADERS = {
@@ -41,6 +43,7 @@ app.use(async (c, next) => {
     inference: createInference(billing, {
       ai: c.env.AI ?? (c.env.CLOUDFLARE_API_TOKEN ? restAi(c.env.CLOUDFLARE_ACCOUNT_ID, c.env.CLOUDFLARE_API_TOKEN) : null),
     }),
+    oauth: oauthProviders(c.env),
     apiUrl: `${appUrl}/api/v1/generate`,
     secure: appUrl.startsWith('https://'),
   });
@@ -135,10 +138,10 @@ app.get('/pricing', (c) => c.html(views.pricing({ user: c.get('user') })));
 
 // Auth
 for (const mode of ['login', 'signup']) {
-  app.get(`/${mode}`, (c) => (c.get('user') ? c.redirect('/account', 302) : c.html(views.authPage({ mode, next: c.req.query('next') }))));
+  app.get(`/${mode}`, (c) => (c.get('user') ? c.redirect('/account', 302) : c.html(views.authPage({ mode, next: c.req.query('next'), providers: providerList(c) }))));
   app.post(`/${mode}`, async (c) => {
     const body = (await readForm(c)) ?? {};
-    const render = (status, error) => c.html(views.authPage({ mode, error, email: body.email, next: body.next }), status);
+    const render = (status, error) => c.html(views.authPage({ mode, error, email: body.email, next: body.next, providers: providerList(c) }), status);
     if (!authLimit(c.req.header('cf-connecting-ip') || 'local')) return render(429, 'Too many attempts. Wait a few minutes and try again.');
     const creds = validateCredentials(body.email, body.password);
     if (creds.error) return render(400, mode === 'login' ? 'That email and password do not match.' : creds.error);
@@ -148,6 +151,59 @@ for (const mode of ['login', 'signup']) {
     return c.redirect(safeNext(body.next), 303);
   });
 }
+
+// Sign in with Google / Apple. The state, nonce and PKCE verifier ride in a short-lived cookie,
+// which binds the callback to the browser that started it. Apple posts the callback cross-site
+// (form_post), so over HTTPS the cookie has to be SameSite=None.
+const providerList = (c) => Object.entries(c.get('ctx').oauth).map(([id, p]) => ({ id, name: p.name }));
+const redirectUri = (c, id) => `${c.get('ctx').appUrl}/auth/${id}/callback`;
+const oauthCookie = (c) => ({ httpOnly: true, secure: c.get('ctx').secure, sameSite: c.get('ctx').secure ? 'None' : 'Lax', path: '/auth' });
+
+app.get('/auth/:provider', async (c) => {
+  const id = c.req.param('provider');
+  const provider = c.get('ctx').oauth[id];
+  if (!provider) return c.html(views.notFound({ user: c.get('user') }), 404);
+  const { url, flow } = await startFlow(provider, redirectUri(c, id));
+  const value = btoa(encodeURIComponent(JSON.stringify({ ...flow, provider: id, next: safeNext(c.req.query('next')) })));
+  setCookie(c, OAUTH_COOKIE, value, { ...oauthCookie(c), maxAge: 600 });
+  return c.redirect(url, 302);
+});
+
+app.on(['GET', 'POST'], '/auth/:provider/callback', async (c) => {
+  const id = c.req.param('provider');
+  const provider = c.get('ctx').oauth[id];
+  if (!provider) return c.html(views.notFound({ user: c.get('user') }), 404);
+  const params = c.req.method === 'POST' ? (await readForm(c)) ?? {} : c.req.query();
+  const fail = (status, error) => c.html(views.authPage({ mode: 'login', error, providers: providerList(c) }), status);
+
+  let flow;
+  try {
+    flow = JSON.parse(decodeURIComponent(atob(getCookie(c, OAUTH_COOKIE) || '')));
+  } catch {
+    flow = null;
+  }
+  deleteCookie(c, OAUTH_COOKIE, oauthCookie(c));
+  if (params.error) return fail(400, params.error === 'access_denied' || params.error === 'user_cancelled_authorize'
+    ? `${provider.name} sign-in was cancelled.` : `${provider.name} sign-in failed. Please try again.`);
+  if (!flow || flow.provider !== id || !params.state || !safeEqual(params.state, flow.state) || !params.code) {
+    return fail(400, 'That sign-in link expired. Please try again.');
+  }
+  if (!authLimit(c.req.header('cf-connecting-ip') || 'local')) return fail(429, 'Too many attempts. Wait a few minutes and try again.');
+
+  let identity;
+  try {
+    identity = await finishFlow(provider, { code: params.code, redirectUri: redirectUri(c, id), flow });
+  } catch (err) {
+    console.error(err);
+    return fail(400, `${provider.name} sign-in failed. Please try again.`);
+  }
+  const result = await c.get('ctx').auth.oauthLogin(id, identity);
+  if (result.error) return fail(400, result.error);
+  await setSession(c, result.userId);
+  if (result.linked) return c.redirect(`/account?linked=${id}${result.passwordDisabled ? '&password=off' : ''}`, 303);
+  return c.redirect(safeNext(flow.next), 303);
+});
+
 app.post('/logout', requireUser, async (c) => {
   await c.get('ctx').auth.endSession(c.get('sessionToken'));
   deleteCookie(c, SESSION_COOKIE, { path: '/' });
@@ -158,10 +214,12 @@ app.post('/logout', requireUser, async (c) => {
 const renderAccount = async (c, extra = {}, status = 200) => {
   const { auth, billing, inference, apiUrl } = c.get('ctx');
   const user = c.get('user');
-  const [balance, keys, history] = await Promise.all([billing.balance(user.id), auth.listKeys(user.id), billing.history(user.id)]);
+  const [balance, keys, history, linked] = await Promise.all([
+    billing.balance(user.id), auth.listKeys(user.id), billing.history(user.id), auth.linkedProviders(user.id),
+  ]);
   return c.html(views.account({
     user: { ...user, balance_micros: balance },
-    keys, history,
+    keys, history, linked,
     billingEnabled: billing.enabled,
     inferenceEnabled: inference.enabled,
     apiUrl,
@@ -172,7 +230,11 @@ const renderAccount = async (c, extra = {}, status = 200) => {
 app.get('/account', requireUser, async (c) => {
   let notice;
   const checkout = c.req.query('checkout');
-  if (checkout === 'cancelled') notice = { tone: 'neutral', text: 'Checkout cancelled. You were not charged.' };
+  const linked = c.get('ctx').oauth[c.req.query('linked')];
+  if (linked) {
+    notice = { tone: 'positive', text: `${linked.name} is now linked to your account.` };
+    if (c.req.query('password') === 'off') notice.text += ` Your old password was turned off because this email had not been confirmed. Use ${linked.name} to sign in.`;
+  } else if (checkout === 'cancelled') notice = { tone: 'neutral', text: 'Checkout cancelled. You were not charged.' };
   else if (typeof checkout === 'string' && checkout.startsWith('cs_')) {
     try {
       await c.get('ctx').billing.confirmCheckout(checkout, c.get('user').id);
