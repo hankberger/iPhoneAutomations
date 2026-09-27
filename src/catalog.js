@@ -4,8 +4,8 @@ import { costMicros } from './inference.js';
 // (npm run shortcuts). The shortcut sends its input to /api/v1/run/<slug>; the prompt
 // and model live here, so they can change without anyone reinstalling.
 // `inside` lists the shortcut's actions in plain words, for people who want to check.
-// An automation with no `model` is free: it runs entirely on the phone, carries no key and
-// installs without an account. Those are the ones that get people through the door.
+// An automation with no `model` is free: it runs entirely on the phone and carries no key,
+// though installing it still needs an account like every other.
 const CALL = { action: 'Ask Advanced Automations', detail: 'Sends the text to our API with your key. Nothing else leaves your phone.' };
 
 export const CATEGORIES = ['Writing', 'Productivity', 'Capture', 'Everyday'];

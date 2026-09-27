@@ -174,11 +174,13 @@ test('signup, login, csrf, keys and metered Cloudflare proxy', async () => {
   assert.equal((await form('/login', { email: 'a@b.co', password: 'correct horse battery' })).status, 303);
 });
 
-test('free shortcuts install without an account and never call the API', async () => {
-  const { req } = await boot();
+test('free shortcuts still need an account but get no key', async () => {
+  const { req, form } = await boot();
   const detail = await (await req('/automations/guest-wifi-qr')).text();
-  assert.match(detail, /href="\/automations\/guest-wifi-qr\/install"/, 'no sign-in detour');
+  assert.match(detail, /href="\/signup\?next=%2Fautomations%2Fguest-wifi-qr%2Finstall"/);
   assert.doesNotMatch(detail, /YOUR_KEY/);
+  assert.equal((await req('/automations/guest-wifi-qr/install')).status, 302, 'sign-up first');
+  await form('/signup', { email: 'f@b.co', password: 'correct horse battery' });
   const res = await req('/automations/guest-wifi-qr/install');
   assert.equal(res.status, 200);
   const html = await res.text();

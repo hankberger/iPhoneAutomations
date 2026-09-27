@@ -21,7 +21,7 @@ const INCLUDES = ['calendar', 'crypto', 'documents', 'images', 'location', 'medi
 // Every shortcut sends its input to /api/v1/run/<slug>. The server owns the prompt and model,
 // so they can change without anyone reinstalling. Errors come back with a message and a link
 // (top up, get a new key) that the shortcut offers to open.
-// Free shortcuts (no model) never call us, so they carry no key and install without an account.
+// Free shortcuts (no model) never call us, so they carry no key.
 const callBlock = (slug, { choice, image }) => `
 const apiKey = trimWhitespace(key)
 const response = jsonRequest("${API_BASE}/api/v1/run/${slug}", "POST", {"input": "{input}"${choice ? ', "choice": "{choice}"' : ''}${image ? ', "image": "{image}"' : ''}}, {"Authorization": "Bearer {apiKey}"})
