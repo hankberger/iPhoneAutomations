@@ -229,3 +229,37 @@ input:focus { outline: 3px solid color-mix(in srgb, #7c5cff 45%, transparent); o
   .tile { border-radius: 22px; padding: 14px; font-size: 0.9rem; }
   .tile svg { width: 24px; height: 24px; }
 }
+
+/* Getting a shortcut */
+.meta .get { padding: 4px 14px; border-radius: 999px; background: var(--c); color: #fff; font-weight: 700; }
+.hero-note { margin: 18px 0 0; }
+.get-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 0 0 28px; }
+.get-row p { margin: 0; max-width: 22em; }
+.btn-get { background: var(--c, var(--ink)); color: #fff; }
+.btn-get svg { width: 20px; height: 20px; }
+.btn svg { width: 18px; height: 18px; flex: none; }
+.tip { font-size: 1.08rem; padding: 18px 20px; border-radius: 20px; background: var(--soft); }
+.inside-h { margin-top: 36px; }
+.mini-steps { padding-left: 1.2em; margin: 12px 0 20px; display: grid; gap: 8px; color: var(--muted); }
+.mini-steps strong { color: var(--text); }
+.dev { margin-top: 12px; }
+.dev summary { cursor: pointer; font-weight: 600; font-size: 0.92rem; }
+.install { display: grid; justify-items: center; padding-top: 32px; }
+.install > .link { justify-self: start; }
+.install-card { width: 100%; max-width: 480px; margin-top: 20px; display: grid; justify-items: center; gap: 14px; text-align: center; padding: 36px 28px; border-radius: 32px; background: color-mix(in srgb, var(--c) var(--tint), var(--bg)); }
+.install-card h1 { font-size: clamp(2rem, 6vw, 2.8rem); margin: 6px 0 0; }
+.install-card > p { margin: 0; }
+.keybox { width: 100%; display: grid; gap: 4px; padding: 14px 16px; border-radius: 18px; background: var(--bg); text-align: left; }
+.keybox code { overflow-wrap: anywhere; font-weight: 700; font-size: 0.92rem; user-select: all; -webkit-user-select: all; }
+.install-steps { list-style: none; padding: 0; margin: 28px 0 0; width: 100%; max-width: 480px; display: grid; gap: 10px; }
+.install-steps li { display: flex; gap: 16px; padding: 20px; border-radius: 22px; background: var(--soft); }
+.install-steps b { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: var(--ink); color: var(--on-ink); font: 700 1rem var(--display); }
+.install-steps h3 { font-size: 1.1rem; margin-bottom: 4px; }
+.install-steps p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.install-steps a { color: var(--text); font-weight: 600; }
+.ios .desktop-only { display: none; }
+.desktop-only { margin-top: 20px; }
+@media (max-width: 560px) {
+  .get-row .btn { width: 100%; }
+  .install-card { padding: 28px 20px; }
+}

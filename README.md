@@ -4,7 +4,8 @@ Free iPhone Shortcuts automations, with pay-as-you-go AI credit sold at a markup
 
 Runs on Cloudflare Workers: [Hono](https://hono.dev) for routing, D1 for the database, the Workers AI binding for inference, and Workers static assets for `public/`.
 
-- **Pages:** landing (`/`), catalog (`/automations`), automation detail, pricing, login, signup, account.
+- **Pages:** landing (`/`), catalog (`/automations`), shortcut detail, install page (`/automations/<slug>/install`), pricing, login, signup, account.
+- **Getting a shortcut:** Get → sign in (Google or Apple accounts start with $0.25 of credit, `STARTER_CREDIT_USD` to change) → the install page makes a key for that shortcut, copies it and opens `shortcuts://import-shortcut` with the signed file. Shortcuts asks for the key once, as an import question.
 - **Login:** email and password, PBKDF2-SHA256 hashes (Web Crypto, 100k iterations), server-side sessions in an httpOnly cookie, CSRF tokens on every form, rate-limited login.
 - **Payments:** Stripe Checkout top-ups ($5, $10, $25, $50). Credit is added by the `checkout.session.completed` webhook and again on the success redirect, both idempotent.
 - **Inference proxy:** `POST /api/v1/generate` with `Authorization: Bearer aa_live_...`. It reserves the worst-case cost before calling Workers AI, then refunds the difference, so concurrent calls cannot overdraw. Every change lands in a ledger shown on the account page.
@@ -89,6 +90,20 @@ Response: `{ text, model, cost_usd, balance_usd, usage }`.
 **Pass-through:** `POST /api/v1/ai/run/{model}` takes the same body as Cloudflare's `/ai/run/{model}` and returns `{ success, result, billing }`.
 
 Each call reserves its worst-case cost first, then charges actual token usage and refunds the rest. `402` means not enough credit. Streaming is not supported yet, and `max_tokens` defaults to 1024 (cap 4096).
+
+## Shortcut files
+
+Each automation in `src/catalog.js` has a source file at `shortcuts/<slug>.cherri` in [Cherri](https://github.com/electrikmilk/cherri), a language that compiles to Shortcuts. `npm run shortcuts` wraps each one with the key import question and the API call, compiles it, signs it (through RoutineHub's HubSign service when not on a Mac) and writes `public/shortcuts/<slug>.shortcut`. Commit the signed files.
+
+Stock Cherri records the wrong action for import questions, so build it with the fix in `scripts/cherri-import-questions.patch` (made against commit d96eee9):
+
+```sh
+git clone https://github.com/electrikmilk/cherri && cd cherri
+git checkout d96eee9 && git apply ../iPhoneAutomations/scripts/cherri-import-questions.patch
+go build -o ~/bin/cherri .
+```
+
+Installed shortcuts call `POST /api/v1/run/<slug>` with `{ "input": "...", "choice": "..." }`. The prompt and model come from the catalog, so they can change without anyone reinstalling. Errors return `{ error, action_url }`: the shortcut shows the message and offers to open the link (top up, or add the shortcut again with a fresh key). Shortcuts point at `https://iphoneadvanced.com` unless built with `SHORTCUT_API_BASE`.
 
 ## Mockups with GPT-Image-2
 

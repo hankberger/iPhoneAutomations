@@ -119,6 +119,17 @@ export function createInference(billing, { ai } = {}) {
     return { status: 200, json: { text: out.text, model, ...out.billing } };
   }
 
+  // What the installed shortcuts call: the automation supplies the prompt and model, the
+  // shortcut only sends { input, choice? }. A choice outside the automation's list falls back
+  // to its first option, so nothing but the listed words reaches the prompt.
+  async function runAutomation(user, automation, body) {
+    const input = typeof body.input === 'string' ? body.input.trim() : '';
+    if (!input) return { status: 400, json: { error: 'There was nothing to work with. Share some text, or copy it first, then run the shortcut again.' } };
+    const choice = automation.choices ? (automation.choices.includes(body.choice) ? body.choice : automation.choices[0]) : '';
+    const prompt = automation.prompt.replace('{{choice}}', choice);
+    return generate(user, { prompt, input, model: automation.model });
+  }
+
   // Pass-through that mirrors Cloudflare's /ai/run/{model} REST request and response shape.
   async function run(user, model, body) {
     const out = await meteredRun(user, model, body ?? {});
@@ -126,5 +137,5 @@ export function createInference(billing, { ai } = {}) {
     return { status: 200, json: { success: true, result: out.result, billing: out.billing } };
   }
 
-  return { enabled, generate, run };
+  return { enabled, generate, run, runAutomation };
 }

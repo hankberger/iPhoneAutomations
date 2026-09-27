@@ -1,0 +1,9 @@
+#define color green
+#define glyph microphone
+
+action 'com.apple.mobilenotes.SharingExtension' createNote(text body: 'WFCreateNoteInput')
+
+const input = listen()
+// @call
+createNote("{result}")
+showNotification("{result}", "Saved to Notes")

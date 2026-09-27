@@ -1,0 +1,8 @@
+#define color pink
+#define glyph dollar
+
+const photo = takePhoto()
+const input = getTextFromImage(photo)
+// @call
+appendToFile("Receipts.csv", result)
+showNotification("{result}", "Added to Receipts.csv")

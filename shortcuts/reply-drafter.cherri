@@ -1,0 +1,7 @@
+#define color purple
+#define glyph chatBubble
+
+const input = getClipboard()
+// @call
+setClipboard(result)
+showNotification("{result}", "Reply copied")
