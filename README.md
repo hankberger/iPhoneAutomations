@@ -39,6 +39,28 @@ Then add a Stripe webhook endpoint at `https://<your-domain>/webhooks/stripe` fo
 
 Schema changes go in a new file under `migrations/`.
 
+## Sign in with Google and Apple
+
+Each button shows up only when its secrets are set. Accounts are matched by provider subject first, then linked by verified email. When a provider signs in to an existing password account whose email was never confirmed, the old password is turned off and its sessions end, so nobody can pre-register someone else's email and keep access.
+
+**Google.** In Google Cloud console, APIs & Services > Credentials, create an OAuth client ID of type Web application. Authorized redirect URI: `https://<your-domain>/auth/google/callback`. Then:
+
+```bash
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+```
+
+**Apple.** In the Apple Developer portal (Certificates, Identifiers & Profiles): create a Services ID with Sign in with Apple enabled, add your domain and the return URL `https://<your-domain>/auth/apple/callback` (Apple does not accept localhost or plain http), and create a key with Sign in with Apple enabled. Then:
+
+```bash
+npx wrangler secret put APPLE_CLIENT_ID     # the Services ID, e.g. com.iphoneadvanced.web
+npx wrangler secret put APPLE_TEAM_ID
+npx wrangler secret put APPLE_KEY_ID
+npx wrangler secret put APPLE_PRIVATE_KEY < AuthKey_XXXXXXXXXX.p8
+```
+
+Run `npm run db:migrate:remote` once to add the `identities` table.
+
 ## Stripe
 
 ```bash

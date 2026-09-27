@@ -5,3 +5,12 @@ STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 # Only for `npm run dev:local`: a token with Workers AI Read, used instead of the AI binding.
 CLOUDFLARE_API_TOKEN=
+# Optional: Sign in with Google (console.cloud.google.com > APIs & Services > Credentials, Web client).
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+# Optional: Sign in with Apple (developer.apple.com: Services ID, Team ID, and a Sign in with Apple key).
+APPLE_CLIENT_ID=
+APPLE_TEAM_ID=
+APPLE_KEY_ID=
+# Contents of the .p8 file; \n escapes are fine on one line.
+APPLE_PRIVATE_KEY=

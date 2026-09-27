@@ -160,6 +160,13 @@ pre { background: #1f1f21; color: #e8e8e4; border-radius: 16px; padding: 16px; f
 label { display: grid; gap: 6px; font-size: 0.88rem; font-weight: 600; }
 input { height: 50px; padding: 0 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
 input:focus { outline: 3px solid color-mix(in srgb, #7c5cff 45%, transparent); outline-offset: 0; border-color: #7c5cff; }
+.oauth { display: grid; gap: 10px; }
+.oauth .btn svg { width: 20px; height: 20px; flex: none; }
+.oauth-google { background: #fff; color: #1f1f1f; border: 1px solid var(--line); }
+.oauth-apple { background: #000; color: #fff; }
+@media (prefers-color-scheme: dark) { .oauth-apple { background: #fff; color: #000; } }
+.divider { display: flex; align-items: center; gap: 12px; margin: 2px 0; }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .alert { background: color-mix(in srgb, var(--negative) 12%, transparent); color: var(--negative); padding: 12px 14px; border-radius: 12px; font-size: 0.9rem; font-weight: 500; }
 
 /* Account */

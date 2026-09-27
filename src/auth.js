@@ -72,6 +72,15 @@ export function createAuth(db) {
     insertKey: db.prepare('INSERT INTO api_keys (user_id, key_hash, prefix, name, created_at) VALUES (?, ?, ?, ?, ?)'),
     listKeys: db.prepare('SELECT id, prefix, name, created_at, last_used_at FROM api_keys WHERE user_id = ? AND revoked_at IS NULL ORDER BY id DESC'),
     revokeKey: db.prepare('UPDATE api_keys SET revoked_at = ? WHERE id = ? AND user_id = ?'),
+    identity: db.prepare('SELECT user_id FROM identities WHERE provider = ? AND subject = ?'),
+    insertIdentity: db.prepare('INSERT INTO identities (provider, subject, user_id, email, created_at) VALUES (?, ?, ?, ?, ?)'),
+    insertOauthUser: db.prepare("INSERT INTO users (email, password_hash, email_verified_at, created_at) VALUES (?, '', ?, ?) RETURNING id"),
+    // The password on an unconfirmed account may have been set by someone squatting the email,
+    // so the first verified sign-in turns it off and ends its sessions.
+    claimUser: db.prepare("UPDATE users SET password_hash = '', email_verified_at = ? WHERE id = ?"),
+    verifyUser: db.prepare('UPDATE users SET email_verified_at = ? WHERE id = ? AND email_verified_at IS NULL'),
+    deleteUserSessions: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
+    linkedProviders: db.prepare('SELECT provider FROM identities WHERE user_id = ? ORDER BY provider'),
   };
 
   async function signup(email, password) {
@@ -110,6 +119,35 @@ export function createAuth(db) {
     return row;
   }
 
+  // Signs in with a provider identity from src/oauth.js, creating the account or linking it
+  // to an existing one with the same verified email.
+  async function oauthLogin(provider, { subject, email, emailVerified }) {
+    const linked = await q.identity.bind(provider, subject).first();
+    if (linked) return { userId: linked.user_id };
+    if (!email || !emailVerified) return { error: 'That account has no verified email address. Try another way to sign in.' };
+
+    const now = Date.now();
+    const user = await q.userByEmail.bind(email).first();
+    if (user) {
+      const unconfirmedPassword = !user.email_verified_at && user.password_hash !== '';
+      await db.batch([
+        q.insertIdentity.bind(provider, subject, user.id, email, now),
+        ...(unconfirmedPassword
+          ? [q.claimUser.bind(now, user.id), q.deleteUserSessions.bind(user.id)]
+          : [q.verifyUser.bind(now, user.id)]),
+      ]);
+      return { userId: user.id, linked: true, passwordDisabled: unconfirmedPassword };
+    }
+    try {
+      const { id } = await q.insertOauthUser.bind(email, now, now).first();
+      await q.insertIdentity.bind(provider, subject, id, email, now).run();
+      return { userId: id };
+    } catch (err) {
+      if (/UNIQUE/i.test(err.message)) return { error: 'Something changed while signing you in. Please try again.' };
+      throw err;
+    }
+  }
+
   const endSession = async (t) => t && q.deleteSession.bind(await sha256(t)).run();
 
   async function createApiKey(userId, name) {
@@ -126,9 +164,10 @@ export function createAuth(db) {
   }
 
   return {
-    signup, login, startSession, sessionUser, endSession, createApiKey, apiKeyUser,
+    signup, login, oauthLogin, startSession, sessionUser, endSession, createApiKey, apiKeyUser,
     listKeys: async (userId) => (await q.listKeys.bind(userId).all()).results,
     revokeKey: (userId, id) => q.revokeKey.bind(Date.now(), id, userId).run(),
+    linkedProviders: async (userId) => (await q.linkedProviders.bind(userId).all()).results.map((r) => r.provider),
   };
 }
 
