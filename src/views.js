@@ -43,7 +43,7 @@ export function layout({ title, user, body, active = '' }) {
     <nav class="nav">
       ${nav('/automations', 'Shortcuts')}
       ${nav('/pricing', 'Pricing')}
-      ${user ? `<a class="btn btn-sm" href="/account">Account</a>` : `${nav('/login', 'Log in')}<a class="btn btn-sm" href="/automations">Get shortcuts</a>`}
+      ${user ? `<a class="btn btn-sm" href="/account">Account</a>` : `<a class="btn btn-sm" href="/login">Log in</a>`}
     </nav>
   </div>
 </header>
