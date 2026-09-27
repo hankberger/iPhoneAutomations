@@ -39,7 +39,7 @@
 /* Automation colors: one class sets --c for tiles, cards and icons. */
 .c-orange { --c: #ff6b3d; } .c-violet { --c: #7c5cff; } .c-green { --c: #10b981; } .c-yellow { --c: #f5b400; }
 .c-pink { --c: #ec4899; } .c-sky { --c: #0ea5e9; } .c-amber { --c: #f97316; } .c-indigo { --c: #6366f1; }
-.c-teal { --c: #14b8a6; } .c-red { --c: #ef4444; }
+.c-teal { --c: #14b8a6; } .c-red { --c: #ef4444; } .c-lime { --c: #65a30d; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }

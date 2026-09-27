@@ -41,6 +41,17 @@ function imageUrl(value) {
   return '';
 }
 
+// Models sometimes write a heading with a lone "- None" under it instead of leaving it out.
+const dropEmptySections = (text) => text.replace(/\n\n[^\n]+\n- None\.?[ \t]*(?=\n\n|$)/gi, '');
+
+// Workers AI takes audio as base64. Built in chunks so long recordings don't overflow the stack.
+function base64(bytes) {
+  const view = new Uint8Array(bytes);
+  let binary = '';
+  for (let i = 0; i < view.length; i += 0x8000) binary += String.fromCharCode(...view.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
 // The first {...} in a model's answer, parsed, or null. Models sometimes wrap JSON in prose.
 function jsonObject(text) {
   const start = text.indexOf('{');
@@ -60,8 +71,17 @@ const FORMATS = {
     const value = jsonObject(text);
     return value && JSON.stringify(Object.fromEntries(Object.entries(value).filter(([, v]) => v !== false && v !== '' && v != null)));
   },
-  vcard: (text) => text.match(/BEGIN:VCARD[\s\S]*?END:VCARD/i)?.[0].replace(/\r?\n/g, '\r\n') ?? null,
 };
+
+// Speech to text, billed per minute of audio at Cloudflare's price times the markup.
+export const AUDIO_MODELS = {
+  '@cf/openai/whisper-large-v3-turbo': { label: 'Whisper Large v3 Turbo', perMinute: 0.00051 },
+};
+const AUDIO_MODEL = '@cf/openai/whisper-large-v3-turbo';
+export const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+// iPhone recordings run far above 50 KB a minute (about 7 kbps), so this bounds the minutes we reserve for.
+const MIN_AUDIO_BYTES_PER_MINUTE = 50_000;
+export const audioMicros = (minutes) => Math.ceil(minutes * AUDIO_MODELS[AUDIO_MODEL].perMinute * markup() * MICROS);
 
 // Cloudflare error codes that mean the caller should retry later rather than fix the request.
 const RATE_LIMIT_CODES = new Set([3036, 3040]);
@@ -124,7 +144,8 @@ export function createInference(billing, { ai } = {}) {
       return { status, json: { error: 'Model provider rejected the request.', errors: [{ code: code || undefined, message }] } };
     }
 
-    const text = typeof result.response === 'string' ? result.response : '';
+    // Workers AI hands back an answer that is pure JSON already parsed, so turn it back into text.
+    const text = typeof result.response === 'string' ? result.response : result.response != null ? JSON.stringify(result.response) : '';
     // Most Workers AI text models report usage; estimate at ~4 characters per token when one does not.
     const inputTokens = result.usage?.prompt_tokens ?? Math.ceil(size / 4);
     const outputTokens = result.usage?.completion_tokens ?? Math.ceil(JSON.stringify(result.response ?? '').length / 4);
@@ -170,7 +191,6 @@ export function createInference(billing, { ai } = {}) {
   // shortcut only sends { input, choice?, image? }. A choice outside the automation's list falls
   // back to its first option, so nothing but the listed words reaches the prompt.
   async function runAutomation(user, automation, body) {
-    if (!automation.prompt) return { status: 400, json: { error: `${automation.name} runs entirely on your iPhone and doesn’t use AI.` } };
     const input = typeof body.input === 'string' ? body.input.trim() : '';
     const image = automation.image ? body.image : undefined;
     if (automation.image && !image) return { status: 400, json: { error: 'There was no photo to look at. Take or share a photo, then run the shortcut again.' } };
@@ -179,11 +199,51 @@ export function createInference(billing, { ai } = {}) {
     const prompt = automation.prompt.replace('{{choice}}', choice);
     const out = await generate(user, { prompt, input, image, model: automation.model });
     if (out.status !== 200 || !automation.format) return out;
-    // The shortcut feeds the answer straight into Get Dictionary or a .vcf file, so hand back
+    // The shortcut feeds the answer straight into Get Dictionary, so hand back
     // exactly that, or a readable error. The run is still charged: the model did the work.
     const clean = FORMATS[automation.format](out.json.text);
     if (!clean) return { status: 422, json: { ...out.json, error: automation.formatError } };
     return { status: 200, json: { ...out.json, text: clean } };
+  }
+
+  // Reserves for the longest recording the file could hold, transcribes, then charges the
+  // minutes Whisper reports.
+  async function transcribe(user, bytes) {
+    if (!enabled) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
+    const reserved = audioMicros(Math.max(1, bytes.byteLength / MIN_AUDIO_BYTES_PER_MINUTE));
+    if (!(await billing.reserve(user.id, reserved))) {
+      return { status: 402, json: { error: `Not enough credit. This recording can cost up to ${formatUsd(reserved, 4)}; top up at /account.`, balance_usd: (await billing.balance(user.id)) / MICROS } };
+    }
+    let result;
+    try {
+      result = (await ai.run(AUDIO_MODEL, { audio: base64(bytes) })) ?? {};
+    } catch (err) {
+      await billing.settle(user.id, reserved, 0, {});
+      return { status: 502, json: { error: 'Model provider rejected the request.', errors: [{ message: String(err?.message ?? err) }] } };
+    }
+    const minutes = (result.transcription_info?.duration ?? 60) / 60;
+    const actual = Math.min(audioMicros(minutes), reserved);
+    await billing.settle(user.id, reserved, actual, {
+      description: `${AUDIO_MODELS[AUDIO_MODEL].label}: ${minutes.toFixed(1)} min of audio`,
+      model: AUDIO_MODEL, input_tokens: 0, output_tokens: 0,
+    });
+    return { status: 200, text: (result.text ?? '').trim(), cost_usd: actual / MICROS };
+  }
+
+  // Audio automations: transcribe the recording, then run the automation's prompt on the
+  // transcript. The shortcut gets the summary with the full transcript underneath.
+  async function runAudioAutomation(user, automation, bytes) {
+    if (!bytes.byteLength) return { status: 400, json: { error: 'The recording was empty. Record again, then stop when you’re done.' } };
+    if (bytes.byteLength > MAX_AUDIO_BYTES) return { status: 413, json: { error: 'That recording is too long. Recordings up to about 45 minutes work.' } };
+    const heard = await transcribe(user, bytes);
+    if (heard.status !== 200) return heard;
+    if (!heard.text) return { status: 422, json: { error: 'Couldn’t hear any speech in that recording.' } };
+    const out = await generate(user, { prompt: automation.prompt, input: heard.text, model: automation.model });
+    if (out.status !== 200) return out;
+    return {
+      status: 200,
+      json: { ...out.json, text: `${dropEmptySections(out.json.text.trim())}\n\nTranscript\n${heard.text}`, cost_usd: out.json.cost_usd + heard.cost_usd },
+    };
   }
 
   // Pass-through that mirrors Cloudflare's /ai/run/{model} REST request and response shape.
@@ -193,5 +253,5 @@ export function createInference(billing, { ai } = {}) {
     return { status: 200, json: { success: true, result: out.result, billing: out.billing } };
   }
 
-  return { enabled, generate, run, runAutomation };
+  return { enabled, generate, run, runAutomation, runAudioAutomation };
 }

@@ -1,7 +1,8 @@
 // Compiles shortcuts/*.cherri into signed, installable files at public/shortcuts/<slug>.shortcut.
 //
-// Needs the Cherri compiler (https://github.com/electrikmilk/cherri) with the import question
-// fix in scripts/cherri-import-questions.patch, on PATH or at CHERRI=/path/to/cherri.
+// Needs the Cherri compiler (https://github.com/electrikmilk/cherri) built with the import
+// question fix in scripts/cherri-import-questions.patch and the Log Health Sample quantity
+// support in scripts/cherri-health-quantity.patch, on PATH or at CHERRI=/path/to/cherri.
 // Usage: npm run shortcuts [-- slug ...]
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
@@ -15,16 +16,20 @@ const CHERRI = process.env.CHERRI || 'cherri';
 const API_BASE = (process.env.SHORTCUT_API_BASE || 'https://iphoneadvanced.com').replace(/\/$/, '');
 export const KEY_QUESTION = 'Paste your Advanced Automations key. We copied it for you when you tapped Add to Shortcuts.';
 
-const INCLUDES = ['calendar', 'crypto', 'documents', 'images', 'location', 'media', 'network', 'photos', 'sharing', 'text', 'web']
+const INCLUDES = ['calendar', 'crypto', 'documents', 'images', 'media', 'network', 'photos', 'sharing', 'text', 'web']
   .map((c) => `#include 'actions/${c}'`).join('\n');
 
 // Every shortcut sends its input to /api/v1/run/<slug>. The server owns the prompt and model,
 // so they can change without anyone reinstalling. Errors come back with a message and a link
 // (top up, get a new key) that the shortcut offers to open.
-// Free shortcuts (no model) never call us, so they carry no key.
-const callBlock = (slug, { choice, image }) => `
+// A shortcut with `const audio` posts the recording itself; the rest post JSON, adding "choice"
+// and "image" when they define those.
+const request = (url, { choice, image, audio }) => (audio
+  ? `fileRequest("${url}", "POST", audio, {"Authorization": "Bearer {apiKey}"})`
+  : `jsonRequest("${url}", "POST", {"input": "{input}"${choice ? ', "choice": "{choice}"' : ''}${image ? ', "image": "{image}"' : ''}}, {"Authorization": "Bearer {apiKey}"})`);
+const callBlock = (slug, sends) => `
 const apiKey = trimWhitespace(key)
-const response = jsonRequest("${API_BASE}/api/v1/run/${slug}", "POST", {"input": "{input}"${choice ? ', "choice": "{choice}"' : ''}${image ? ', "image": "{image}"' : ''}}, {"Authorization": "Bearer {apiKey}"})
+const response = ${request(`${API_BASE}/api/v1/run/${slug}`, sends)}
 const reply = getDictionary(response)
 const result = getValue(reply, "text")
 if !result {
@@ -37,16 +42,15 @@ if !result {
 
 export function cherriSource(a) {
   const body = readFileSync(join(root, 'shortcuts', `${a.slug}.cherri`), 'utf8');
-  if (!a.model) {
-    if (body.includes('// @call')) throw new Error(`${a.slug} is free but its .cherri calls the API`);
-    return `${INCLUDES}\n#define name ${a.name}\n${body}`;
-  }
   if (!body.includes('// @call')) throw new Error(`${a.slug}.cherri has no "// @call" marker`);
-  const sends = { choice: /\bconst choice\b/.test(body), image: /\bconst image\b/.test(body) };
   return `${INCLUDES}
 #define name ${a.name}
 #question key "${KEY_QUESTION}" ""
-${body.replace('// @call', callBlock(a.slug, sends))}`;
+${body.replace('// @call', callBlock(a.slug, {
+    choice: /\bconst choice\b/.test(body),
+    image: /\bconst image\b/.test(body),
+    audio: /\bconst audio\b/.test(body),
+  }))}`;
 }
 
 // Checks that the import question points at the Trim Whitespace action that holds the key.
@@ -66,7 +70,7 @@ function build(a, outDir) {
     const src = join(work, `${a.slug}.cherri`);
     writeFileSync(src, cherriSource(a));
     execFileSync(CHERRI, [src, '--debug', '--derive-uuids', '--share=anyone', `--output=${join(work, `${a.slug}.shortcut`)}`], { cwd: work, stdio: ['ignore', 'pipe', 'pipe'] });
-    if (a.model) checkImportQuestion(readFileSync(join(work, `${a.name}.plist`), 'utf8'));
+    checkImportQuestion(readFileSync(join(work, `${a.name}.plist`), 'utf8'));
     const signed = readFileSync(join(work, `${a.slug}.shortcut`));
     if (signed.subarray(0, 4).toString() !== 'AEA1') throw new Error('Output is not a signed shortcut');
     writeFileSync(join(outDir, `${a.slug}.shortcut`), signed);

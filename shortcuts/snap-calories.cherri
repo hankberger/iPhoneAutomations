@@ -1,0 +1,26 @@
+#define color green
+#define glyph apple
+#define from sharesheet
+#define inputs image
+
+// Shared photo, or take one. Shrunk and sent as JPEG so a run costs about the same every time.
+@photo = ShortcutInput
+if !ShortcutInput {
+    @photo = takePhoto()
+}
+const small = resizeImageByLongestEdge(@photo, "1024")
+const jpeg = convertToJPEG(small, 0.7, false)
+const image = base64Encode(jpeg)
+const input = "Photo of a meal"
+// @call
+const meal = getDictionary(result)
+const name = getValue(meal, "meal")
+const kcal = getValue(meal, "calories")
+const protein = getValue(meal, "protein")
+const carbs = getValue(meal, "carbs")
+const fat = getValue(meal, "fat")
+rawAction("is.workflow.actions.health.quantity.log", {"WFQuantitySampleType": "Dietary Energy", "WFQuantitySampleQuantity": {"Magnitude": "${kcal}", "Unit": "kcal"}})
+rawAction("is.workflow.actions.health.quantity.log", {"WFQuantitySampleType": "Protein", "WFQuantitySampleQuantity": {"Magnitude": "${protein}", "Unit": "g"}})
+rawAction("is.workflow.actions.health.quantity.log", {"WFQuantitySampleType": "Carbohydrates", "WFQuantitySampleQuantity": {"Magnitude": "${carbs}", "Unit": "g"}})
+rawAction("is.workflow.actions.health.quantity.log", {"WFQuantitySampleType": "Total Fat", "WFQuantitySampleQuantity": {"Magnitude": "${fat}", "Unit": "g"}})
+showNotification("{kcal} kcal · {protein} g protein · {carbs} g carbs · {fat} g fat", "Logged {name} to Health")

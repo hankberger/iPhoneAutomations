@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createAuth, validateCredentials, rateLimiter, safeEqual, SESSION_COOKIE } from './auth.js';
 import { createBilling } from './billing.js';
-import { createInference, restAi } from './inference.js';
+import { createInference, restAi, MAX_AUDIO_BYTES } from './inference.js';
 import { oauthProviders, startFlow, finishFlow } from './oauth.js';
 import { findAutomation, CATEGORIES } from './catalog.js';
 import { MICROS } from './billing.js';
@@ -139,9 +139,17 @@ app.post('/api/v1/run/:slug', async (c) => {
   const page = `${appUrl}/automations/${a.slug}`;
   const user = await bearerUser(c);
   if (!user) return c.json({ error: 'This shortcut’s key isn’t working. Tap OK to add it again with a fresh key.', action_url: page }, 401);
-  const { body, error } = await readJson(c);
-  if (error) return c.json({ ...error[0], action_url: page }, error[1]);
-  const { status, json } = await inference.runAutomation(user, a, body);
+  let result;
+  if (a.audio) {
+    // Audio shortcuts post the recording itself as the body.
+    if (Number(c.req.header('content-length')) > MAX_AUDIO_BYTES) return c.json({ error: 'That recording is too long. Recordings up to about 45 minutes work.', action_url: page }, 413);
+    result = await inference.runAudioAutomation(user, a, await c.req.arrayBuffer());
+  } else {
+    const { body, error } = await readJson(c);
+    if (error) return c.json({ ...error[0], action_url: page }, error[1]);
+    result = await inference.runAutomation(user, a, body);
+  }
+  const { status, json } = result;
   if (status === 402) return c.json({ ...json, error: 'You’re out of credit. Tap OK to top up. Most runs cost under a cent.', action_url: `${appUrl}/account#balance` }, 402);
   if (status !== 200) return c.json({ ...json, error: json.error === 'Model provider rejected the request.' ? 'The AI couldn’t answer that one. Please try again in a moment.' : json.error, action_url: page }, status);
   return c.json(json);
@@ -167,12 +175,10 @@ app.get('/automations/:slug', (c) => {
 });
 // Creates a key for this shortcut and hands it over with the signed file. Keys are only stored
 // hashed, so each visit makes a new one; the page is never cached.
-// Every shortcut needs an account. Free ones (no AI) need no key, so none is made for them.
 app.get('/automations/:slug/install', requireUser, async (c) => {
   const a = findAutomation(c.req.param('slug'));
   if (!a) return c.html(views.notFound({ user: c.get('user') }), 404);
   const { auth, billing, appUrl } = c.get('ctx');
-  if (a.free) return c.html(views.install({ user: c.get('user'), a, fileUrl: `${appUrl}/shortcuts/${a.slug}.shortcut` }));
   const user = c.get('user');
   const [key, balance] = await Promise.all([auth.createApiKey(user.id, a.name), billing.balance(user.id)]);
   c.header('Cache-Control', 'no-store');

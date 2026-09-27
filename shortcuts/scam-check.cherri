@@ -1,0 +1,20 @@
+#define color yellow
+#define glyph shield
+#define from sharesheet
+#define inputs image, text, richtext
+
+// Shared text or image, or your latest screenshot. Text in images is read on your iPhone.
+@source = ShortcutInput
+if !ShortcutInput {
+    @source = getLatestScreenshots(1)
+}
+@details = ""
+const kind = typeOf(@source)
+if kind == "Image" {
+    @details = getTextFromImage(@source)
+} else {
+    @details = getText(@source)
+}
+const input = "{@details}"
+// @call
+show("{result}")

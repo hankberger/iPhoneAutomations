@@ -95,15 +95,16 @@ Each call reserves its worst-case cost first, then charges actual token usage an
 
 Each automation in `src/catalog.js` has a source file at `shortcuts/<slug>.cherri` in [Cherri](https://github.com/electrikmilk/cherri), a language that compiles to Shortcuts. `npm run shortcuts` wraps each one with the key import question and the API call, compiles it, signs it (through RoutineHub's HubSign service when not on a Mac) and writes `public/shortcuts/<slug>.shortcut`. Commit the signed files.
 
-Stock Cherri records the wrong action for import questions, so build it with the fix in `scripts/cherri-import-questions.patch` (made against commit d96eee9):
+Stock Cherri records the wrong action for import questions and can't write the quantities Log Health Sample takes, so build it with the two patches in `scripts/` (made against commit d96eee9):
 
 ```sh
 git clone https://github.com/electrikmilk/cherri && cd cherri
-git checkout d96eee9 && git apply ../iPhoneAutomations/scripts/cherri-import-questions.patch
+git checkout d96eee9
+git apply ../iPhoneAutomations/scripts/cherri-import-questions.patch ../iPhoneAutomations/scripts/cherri-health-quantity.patch
 go build -o ~/bin/cherri .
 ```
 
-Installed shortcuts call `POST /api/v1/run/<slug>` with `{ "input": "...", "choice": "..." }`. The prompt and model come from the catalog, so they can change without anyone reinstalling. Errors return `{ error, action_url }`: the shortcut shows the message and offers to open the link (top up, or add the shortcut again with a fresh key). Shortcuts point at `https://iphoneadvanced.com` unless built with `SHORTCUT_API_BASE`.
+Installed shortcuts call `POST /api/v1/run/<slug>` with `{ "input": "...", "choice": "...", "image": "<base64 JPEG>" }` (choice and image only where the automation uses them). Audio automations such as Meeting Notes post the recording itself as the body instead; it is transcribed with Whisper, billed per minute, and the notes come back with the transcript underneath. The prompt and model come from the catalog, so they can change without anyone reinstalling. Errors return `{ error, action_url }`: the shortcut shows the message and offers to open the link (top up, or add the shortcut again with a fresh key). Shortcuts point at `https://iphoneadvanced.com` unless built with `SHORTCUT_API_BASE`.
 
 ## Mockups with GPT-Image-2
 
