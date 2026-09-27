@@ -21,6 +21,18 @@ const SECURITY_HEADERS = {
 
 const app = new Hono();
 
+// Plain http reaches the Worker on custom domains, so send it to https and pin it there with HSTS.
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+app.use(async (c, next) => {
+  const url = new URL(c.req.url);
+  if (url.protocol === 'http:' && !LOCAL_HOSTS.has(url.hostname)) {
+    url.protocol = 'https:';
+    return c.redirect(url.toString(), c.req.method === 'GET' || c.req.method === 'HEAD' ? 301 : 308);
+  }
+  await next();
+  if (url.protocol === 'https:') c.header('Strict-Transport-Security', 'max-age=31536000');
+});
+
 // Services are cheap wrappers over the bindings, so build them per request.
 app.use(async (c, next) => {
   const appUrl = (c.env.APP_URL || new URL(c.req.url).origin).replace(/\/$/, '');

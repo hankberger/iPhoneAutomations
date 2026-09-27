@@ -32,6 +32,16 @@ async function boot() {
   return { db, ai, req, form };
 }
 
+test('plain http redirects to https', async () => {
+  const env = { DB: memoryD1(), AI: fakeAi() };
+  let res = await app.fetch(new Request('http://iphoneadvanced.com/login?next=/pricing'), env);
+  assert.equal(res.status, 301);
+  assert.equal(res.headers.get('location'), 'https://iphoneadvanced.com/login?next=/pricing');
+  res = await app.fetch(new Request('https://iphoneadvanced.com/'), env);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('strict-transport-security'), /max-age=31536000/);
+});
+
 test('pages render', async () => {
   const { req } = await boot();
   for (const p of ['/', '/automations', '/automations/reply-drafter', '/pricing', '/login', '/signup']) {
