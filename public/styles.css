@@ -67,8 +67,8 @@ svg { display: block; }
 .site-header .row { height: 80px; justify-content: space-between; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 700 1.25rem var(--display); letter-spacing: -0.02em; }
 .brand.small { font-size: 1rem; }
-.mark { width: 30px; height: 30px; border-radius: 9px; background: conic-gradient(from 200deg, #ff6b3d, #f5b400, #10b981, #0ea5e9, #7c5cff, #ec4899, #ff6b3d); flex: none; }
-.brand.small .mark { width: 22px; height: 22px; border-radius: 7px; }
+.brand .mark { width: 30px; height: 30px; flex: none; display: block; }
+.brand.small .mark { width: 22px; height: 22px; }
 .nav { display: flex; align-items: center; gap: 26px; font-weight: 500; font-size: 0.95rem; }
 .nav a { text-decoration: none; }
 .nav a:not(.btn):hover, .nav a[aria-current] { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }

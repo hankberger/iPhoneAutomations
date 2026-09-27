@@ -23,6 +23,9 @@ const ICONS = {
 };
 export const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
 
+// Grid spark mark; same drawing as public/favicon.svg.
+const LOGO = '<svg class="mark" aria-hidden="true" viewBox="0 0 32 32"><rect x="1" y="1" width="13.5" height="13.5" rx="4" fill="#ff6b3d"/><path d="M24.75 .5c.8 4.9 2.35 6.45 7.25 7.25-4.9.8-6.45 2.35-7.25 7.25-.8-4.9-2.35-6.45-7.25-7.25 4.9-.8 6.45-2.35 7.25-7.25z" fill="#7c5cff"/><rect x="1" y="17.5" width="13.5" height="13.5" rx="4" fill="#10b981"/><rect x="17.5" y="17.5" width="13.5" height="13.5" rx="4" fill="#0ea5e9"/></svg>';
+
 export function layout({ title, user, body, active = '' }) {
   const nav = (href, label) => `<a href="${href}"${active === href ? ' aria-current="page"' : ''}>${label}</a>`;
   return `<!doctype html>
@@ -33,13 +36,24 @@ export function layout({ title, user, body, active = '' }) {
 <title>${e(title ? `${title} · Advanced Automations` : 'Advanced Automations: free AI Shortcuts for iPhone')}</title>
 <meta name="description" content="Free iPhone Shortcuts with a little AI inside. Tap Get, add it to the Shortcuts app, and run it from anywhere. No subscription.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#fbfbfa">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Advanced Automations">
+<meta property="og:title" content="${e(title ? `${title} · Advanced Automations` : 'Advanced Automations: free AI Shortcuts for iPhone')}">
+<meta property="og:description" content="Free iPhone Shortcuts with a little AI inside. Tap Get, add it to the Shortcuts app, and run it from anywhere. No subscription.">
+<meta property="og:image" content="https://iphoneadvanced.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 <header class="site-header">
   <div class="wrap row">
-    <a class="brand" href="/"><i class="mark"></i><span>Advanced Automations</span></a>
+    <a class="brand" href="/">${LOGO}<span>Advanced Automations</span></a>
     <nav class="nav">
       ${nav('/automations', 'Shortcuts')}
       ${nav('/pricing', 'Pricing')}
@@ -50,7 +64,7 @@ export function layout({ title, user, body, active = '' }) {
 <main>${body}</main>
 <footer class="site-footer">
   <div class="wrap row">
-    <a class="brand small" href="/"><i class="mark"></i><span>Advanced Automations</span></a>
+    <a class="brand small" href="/">${LOGO}<span>Advanced Automations</span></a>
     <span class="muted small">© ${new Date().getFullYear()} · iphoneadvanced.com</span>
   </div>
 </footer>
