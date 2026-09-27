@@ -167,9 +167,15 @@ app.get('/automations/:slug', (c) => {
 });
 // Creates a key for this shortcut and hands it over with the signed file. Keys are only stored
 // hashed, so each visit makes a new one; the page is never cached.
-app.get('/automations/:slug/install', requireUser, async (c) => {
+// Free shortcuts have no key and skip sign-in.
+app.get('/automations/:slug/install', async (c, next) => {
   const a = findAutomation(c.req.param('slug'));
   if (!a) return c.html(views.notFound({ user: c.get('user') }), 404);
+  if (!a.free) return next();
+  return c.html(views.install({ user: c.get('user'), a, fileUrl: `${c.get('ctx').appUrl}/shortcuts/${a.slug}.shortcut` }));
+});
+app.get('/automations/:slug/install', requireUser, async (c) => {
+  const a = findAutomation(c.req.param('slug'));
   const { auth, billing, appUrl } = c.get('ctx');
   const user = c.get('user');
   const [key, balance] = await Promise.all([auth.createApiKey(user.id, a.name), billing.balance(user.id)]);

@@ -1,0 +1,24 @@
+#define color blue
+#define glyph person
+#define from sharesheet
+#define inputs image, text, richtext
+#define noinput getclipboard
+
+// A shared photo or screenshot is read on your iPhone; text is used as is. Run it on its own to
+// snap a business card.
+@source = ShortcutInput
+if !ShortcutInput {
+    @source = takePhoto()
+}
+@details = ""
+const kind = typeOf(@source)
+if kind == "Image" {
+    @details = getTextFromImage(@source)
+} else {
+    @details = getText(@source)
+}
+const input = "{@details}"
+// @call
+const vcard = "{result}"
+const card = setName(vcard, "Contact.vcf")
+quicklook(card)

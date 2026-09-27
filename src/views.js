@@ -1,4 +1,4 @@
-import { AUTOMATIONS, CATEGORIES } from './catalog.js';
+import { AUTOMATIONS, CATEGORIES, findAutomation } from './catalog.js';
 import { MODELS, retailPrice } from './inference.js';
 import { TOPUP_AMOUNTS, formatUsd, MICROS } from './billing.js';
 
@@ -19,6 +19,12 @@ const ICONS = {
   key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3"/>',
   bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4M9 14h2v2H9z"/>',
+  car: '<path d="M5 16V11l2-5h10l2 5v5z"/><path d="M5 11h14M5 16v3M19 16v3"/><circle cx="8.5" cy="13.5" r=".5"/><circle cx="15.5" cy="13.5" r=".5"/>',
+  cart: '<path d="M3 4h2l2 11h11l2-8H6.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/>',
+  person: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.7-2 3-2s2.5.5 3 2M15 10h3M15 13h3"/>',
+  wifi: '<path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19" r=".8"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
 };
 export const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
@@ -77,16 +83,20 @@ const card = (a) => `
     <span class="ic">${icon(a.icon)}</span>
     <h3>${e(a.name)}</h3>
     <p>${e(a.tagline)}</p>
-    <span class="meta"><span>${e(a.trigger)} · ~${cents(a.typicalCost)}</span><span class="get">Get</span></span>
+    <span class="meta"><span>${e(a.trigger)} · ${a.free ? 'Free, no AI' : `~${cents(a.typicalCost)}`}</span><span class="get">Get</span></span>
   </a>`;
 
 const tile = (a, extra = '') => `<a class="tile c-${a.color}${extra}" href="/automations/${a.slug}">${icon(a.icon)}<span>${e(a.name)}</span></a>`;
 
 export const starterCents = (micros) => `${Math.round(micros / 10_000)}¢`;
-const installHref = (a, user) => (user ? `/automations/${a.slug}/install` : `/signup?next=${encodeURIComponent(`/automations/${a.slug}/install`)}`);
+// Free shortcuts carry no key, so they install without an account.
+const installHref = (a, user) => (user || a.free ? `/automations/${a.slug}/install` : `/signup?next=${encodeURIComponent(`/automations/${a.slug}/install`)}`);
 
 export function landing({ user, starterMicros }) {
-  const [sum, reply, tone, voice, remind, receipt, translate, brief] = AUTOMATIONS;
+  const [look, cal, late, groceries, contact, wifi, sum, reply, tone, voice, remind, receipt, translate, brief] = [
+    'whats-this', 'screenshot-to-calendar', 'running-late', 'recipe-to-groceries', 'card-to-contact', 'guest-wifi-qr',
+    'summarize-anything', 'reply-drafter', 'tone-shifter', 'voice-to-notes', 'smart-reminders', 'receipt-reader', 'translate-selection', 'morning-brief',
+  ].map(findAutomation);
   return layout({
     user,
     body: `
@@ -101,21 +111,21 @@ export function landing({ user, starterMicros }) {
     ${starterMicros ? `<p class="small muted hero-note">Sign in with Apple and your first ${starterCents(starterMicros)} of AI is on us.</p>` : ''}
   </div>
   <div class="tiles" aria-label="Featured shortcuts">
-    ${tile(sum)}${tile(reply, ' tilt-r')}${tile(voice)}
-    ${tile(remind, ' tilt-l')}${tile(receipt)}${tile(translate)}
-    <div class="tile tile-result"><div><b>Summarize Anything</b>Launch moves to Oct 14. Design review Thursday. Budget unchanged.</div><small>Llama 3.3 70B · $0.0006</small></div>
-    ${tile(brief, ' tilt-r')}
+    ${tile(look)}${tile(cal, ' tilt-r')}${tile(voice)}
+    ${tile(late, ' tilt-l')}${tile(sum)}${tile(groceries)}
+    <div class="tile tile-result"><div><b>What’s This?</b>A monstera. Water it when the top two inches of soil are dry.</div><small>Mistral Small 3.1 · $0.0006</small></div>
+    ${tile(wifi, ' tilt-r')}
   </div>
 </section>
 
 <section class="wrap section center" id="shortcuts">
   <h2>Pick one. It’s on your phone in a minute.</h2>
-  <p class="muted">Every shortcut is free. You only pay for the AI it uses, usually well under a cent a run.</p>
-  <div class="grid">${[sum, reply, voice, remind, receipt, translate, brief, tone].map(card).join('')}</div>
+  <p class="muted">Every shortcut is free, and the ones marked “no AI” don’t even need an account. The rest cost a fraction of a cent a run.</p>
+  <div class="grid">${[look, cal, late, groceries, contact, wifi, sum, voice, reply, remind, receipt, translate, brief, tone].map(card).join('')}</div>
 </section>
 
 <section class="wrap how" id="how">
-  <div><b>1</b><h3>Tap Get</h3><p>Pick a shortcut and sign in with Apple. It takes one tap.</p></div>
+  <div><b>1</b><h3>Tap Get</h3><p>Pick a shortcut. Free ones install right away; AI ones take one tap to sign in with Apple.</p></div>
   <div><b>2</b><h3>Add to Shortcuts</h3><p>The Shortcuts app asks for your key. We’ve already copied it, so just paste.</p></div>
   <div><b>3</b><h3>Run it anywhere</h3><p>Share Sheet, Back Tap, Action Button or Siri. Top up whenever your credit runs low.</p></div>
 </section>
@@ -149,7 +159,17 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
   const inside = a.inside.map((s, i) => `
     <li><span class="step-n">${i + 1}</span><div><strong>${e(s.action)}</strong>${s.detail ? `<p>${e(s.detail)}</p>` : ''}</div></li>`).join('');
   const runUrl = apiUrl.replace('/generate', `/run/${a.slug}`);
-  const example = `curl ${runUrl} \\\n  -H "Authorization: Bearer YOUR_KEY" \\\n  -d '{"input": "…"${a.choices ? `, "choice": "${a.choices[0]}"` : ''}}'`;
+  const getNote = a.free
+    ? 'Free forever. It runs entirely on your iPhone, so there’s no account and no key.'
+    : user ? `Free. Each run costs about ${cents(a.typicalCost)} from your balance.` : `Free. Sign in with Apple${starterMicros ? ` and start with ${starterCents(starterMicros)} of credit` : ''}.`;
+  const howSteps = a.free
+    ? `<li>Tap <strong>Get it free</strong>.</li>
+        <li>The Shortcuts app opens with ${e(a.name)}.</li>
+        <li>Tap <strong>Add Shortcut</strong>. That’s it.</li>`
+    : `<li>Tap <strong>${user ? 'Add to Shortcuts' : 'Get it free'}</strong>${user ? '' : ' and sign in'}.</li>
+        <li>We copy a key for this shortcut to your clipboard and open the Shortcuts app.</li>
+        <li>When Shortcuts asks for your key, paste it and tap <strong>Add Shortcut</strong>.</li>`;
+  const example = `curl ${runUrl} \\\n  -H "Authorization: Bearer YOUR_KEY" \\\n  -d '{"input": "…"${a.choices ? `, "choice": "${a.choices[0]}"` : ''}${a.image ? ', "image": "<base64 JPEG>"' : ''}}'`;
   return layout({
     title: a.name,
     user,
@@ -163,13 +183,13 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
       <h1>${e(a.name)}</h1>
       <p class="lede">${e(a.tagline)}</p>
       <div class="get-row">
-        <a class="btn btn-lg btn-get" href="${installHref(a, user)}">${icon('plus')}<span>${user ? 'Add to Shortcuts' : 'Get it free'}</span></a>
-        <p class="small muted">${user ? 'Free. Each run costs about ' + cents(a.typicalCost) + ' from your balance.' : `Free. Sign in with Apple${starterMicros ? ` and start with ${starterCents(starterMicros)} of credit` : ''}.`}</p>
+        <a class="btn btn-lg btn-get" href="${installHref(a, user)}">${icon('plus')}<span>${user && !a.free ? 'Add to Shortcuts' : 'Get it free'}</span></a>
+        <p class="small muted">${getNote}</p>
       </div>
       <dl class="facts">
         <div><dt>Runs from</dt><dd>${e(a.trigger)}</dd></div>
-        <div><dt>Model</dt><dd>${e(MODELS[a.model].label)}</dd></div>
-        <div><dt>Typical cost</dt><dd>~${cents(a.typicalCost)} per run</dd></div>
+        <div><dt>AI</dt><dd>${a.free ? 'None, runs on your iPhone' : e(MODELS[a.model].label)}</dd></div>
+        <div><dt>Typical cost</dt><dd>${a.free ? 'Free' : `~${cents(a.typicalCost)} per run`}</dd></div>
       </dl>
     </div>
   </div>
@@ -183,22 +203,48 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
     <aside class="panel">
       <h3>How adding works</h3>
       <ol class="mini-steps">
-        <li>Tap <strong>${user ? 'Add to Shortcuts' : 'Get it free'}</strong>${user ? '' : ' and sign in'}.</li>
-        <li>We copy a key for this shortcut to your clipboard and open the Shortcuts app.</li>
-        <li>When Shortcuts asks for your key, paste it and tap <strong>Add Shortcut</strong>.</li>
-      </ol>
+        ${howSteps}
+      </ol>${a.free ? '' : `
       <details class="dev">
         <summary>Call it from your own code</summary>
         <pre><code>${e(example)}</code></pre>
-      </details>
+      </details>`}
     </aside>
   </div>
 </section>`,
   });
 }
 
+// Free shortcuts have no key, so their page is one button and a nudge toward the AI ones.
+function installFree({ user, a, importUrl, fileUrl }) {
+  const next = ['whats-this', 'screenshot-to-calendar', 'recipe-to-groceries'].map(findAutomation);
+  return layout({
+    title: `Add ${a.name}`,
+    user,
+    body: `
+<section class="wrap install">
+  <a class="link small" href="/automations/${a.slug}">← ${e(a.name)}</a>
+  <div class="install-card c-${a.color}">
+    <span class="big-ic">${icon(a.icon)}</span>
+    <h1>Add ${e(a.name)}</h1>
+    <p class="muted">Free, no account, and nothing leaves your phone. Tap below, then Add Shortcut.</p>
+    <a class="btn btn-lg btn-block btn-get" href="${e(importUrl)}">${icon('plus')}<span>Open in Shortcuts</span></a>
+    <p class="small muted center">Not opening? <a href="${e(fileUrl)}">Download the shortcut</a> instead.</p>
+  </div>
+
+  <ol class="install-steps">
+    <li><b>1</b><div><h3>Tap Add Shortcut</h3><p>Shortcuts shows what’s inside first, so you can check it.</p></div></li>
+    <li><b>2</b><div><h3>Run it</h3><p>${e(a.runTip)}</p></div></li>
+    <li><b>3</b><div><h3>Try one with AI</h3><p>${next.map((n) => `<a href="/automations/${n.slug}">${e(n.name)}</a>`).join(', ')}. Most runs cost under a cent${user ? '' : ', and signing in with Apple gets you free credit to start'}.</p></div></li>
+  </ol>
+  <p class="small muted center desktop-only">On a computer? Open iphoneadvanced.com on your iPhone and tap Get there instead.</p>
+</section>`,
+  });
+}
+
 export function install({ user, a, key, balance, fileUrl }) {
   const importUrl = `shortcuts://import-shortcut?url=${encodeURIComponent(fileUrl)}&name=${encodeURIComponent(a.name)}`;
+  if (a.free) return installFree({ user, a, importUrl, fileUrl });
   const runs = a.typicalCost > 0 ? Math.floor(balance / MICROS / a.typicalCost) : 0;
   return layout({
     title: `Add ${a.name}`,

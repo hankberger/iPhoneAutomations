@@ -1,0 +1,14 @@
+#define color lightblue
+#define glyph wifi
+
+// iOS never hands a shortcut your Wi-Fi password, so it asks. Nothing leaves your phone.
+@network = getWifiDetail("Network Name")
+if !@network {
+    @network = prompt("What is your Wi-Fi called?", "Text", "")
+}
+const password = prompt("Password for {@network}", "Text", "")
+// Wi-Fi QR codes need \ ; , : and " escaped with a backslash.
+const escapedName = replaceText('([\\;,:"])', '\\$1', @network, true, true)
+const escapedPassword = replaceText('([\\;,:"])', '\\$1', password, true, true)
+const code = makeQRCode("WIFI:T:WPA;S:{escapedName};P:{escapedPassword};;")
+quicklook(code)

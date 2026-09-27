@@ -4,11 +4,124 @@ import { costMicros } from './inference.js';
 // (npm run shortcuts). The shortcut sends its input to /api/v1/run/<slug>; the prompt
 // and model live here, so they can change without anyone reinstalling.
 // `inside` lists the shortcut's actions in plain words, for people who want to check.
+// An automation with no `model` is free: it runs entirely on the phone, carries no key and
+// installs without an account. Those are the ones that get people through the door.
 const CALL = { action: 'Ask Advanced Automations', detail: 'Sends the text to our API with your key. Nothing else leaves your phone.' };
 
 export const CATEGORIES = ['Writing', 'Productivity', 'Capture', 'Everyday'];
 
 export const AUTOMATIONS = [
+  {
+    slug: 'whats-this',
+    icon: 'camera',
+    color: 'teal',
+    name: 'What’s This?',
+    tagline: 'Point your camera at anything and ask about it. A plant, a part, a menu, a rash.',
+    category: 'Everyday',
+    trigger: 'Action Button or Share Sheet',
+    runTip: 'Set it as your Action Button, or share a photo to it. Ask anything, or keep “What is this?”.',
+    model: '@cf/mistralai/mistral-small-3.1-24b-instruct',
+    image: true,
+    typicalTokens: [1100, 90],
+    prompt: 'Answer the question about the photo in two or three short sentences. If the question is just "What is this?", name the thing as specifically as you can, then add the single most useful fact about it.',
+    inside: [
+      { action: 'Take Photo', detail: 'Or the photo you shared.' },
+      { action: 'Ask for Input', detail: 'Your question, “What is this?” by default.' },
+      { action: 'Resize Image and Convert Image', detail: 'A 1024 pixel JPEG, so every run costs about the same.' },
+      { action: 'Ask Advanced Automations', detail: 'Sends the photo and your question to our API with your key.' },
+      { action: 'Show Result' },
+    ],
+  },
+  {
+    slug: 'screenshot-to-calendar',
+    icon: 'calendar',
+    color: 'red',
+    name: 'Screenshot to Calendar',
+    tagline: 'Share a flyer, invite or text and it becomes a real calendar event.',
+    category: 'Productivity',
+    trigger: 'Share Sheet or Back Tap',
+    runTip: 'Share a screenshot, photo or text to it. Or take a screenshot and run it from Back Tap; it uses your latest screenshot.',
+    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    typicalTokens: [400, 80],
+    format: 'json',
+    formatError: 'Couldn’t find an event in that. Try one that shows the date and time.',
+    prompt: 'The input starts with today\'s date, then text from a screenshot, flyer, message or email. Find the one event it describes and reply with only a JSON object with these keys: "title" (short event name in title case), "start" and "end" (both "YYYY-MM-DD HH:MM", 24-hour), "all_day" (true or false), "location" (place or address, or ""), "notes" (one line of useful details such as a link or dress code, or ""). Resolve dates like "next Friday" from today\'s date. Use the end time when one is given, as in "8AM - 1PM". With no end time, end one hour after the start. With no time at all, set all_day to true.',
+    inside: [
+      { action: 'Extract Text from Image', detail: 'Your shared image or latest screenshot, read on your iPhone. Only the text is sent.' },
+      CALL,
+      { action: 'Add New Event', detail: 'Title, time, place and notes, in your default calendar.' },
+    ],
+  },
+  {
+    slug: 'running-late',
+    icon: 'car',
+    color: 'amber',
+    name: 'Running Late',
+    tagline: 'Texts “I’m about 12 min away” for your next event, with the real drive time from Maps.',
+    category: 'Everyday',
+    trigger: 'Siri or Action Button',
+    runTip: 'Say “Hey Siri, Running Late”. It picks your next event, asks Maps for the drive time, and opens a message for you to send.',
+    inside: [
+      { action: 'Get Upcoming Events', detail: 'Your next event and its location.' },
+      { action: 'Get Travel Time', detail: 'Driving time from where you are, from Maps.' },
+      { action: 'Send Message', detail: 'Opens a text for you to pick who gets it and send.' },
+    ],
+  },
+  {
+    slug: 'recipe-to-groceries',
+    icon: 'cart',
+    color: 'green',
+    name: 'Recipe to Groceries',
+    tagline: 'Share a recipe and every ingredient lands in Reminders, ready to shop.',
+    category: 'Everyday',
+    trigger: 'Share Sheet',
+    runTip: 'On any recipe page in Safari, tap Share and pick Recipe to Groceries. Items go to your default Reminders list; open the shortcut to pick your Groceries list instead.',
+    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    typicalTokens: [2500, 120],
+    prompt: 'The input is a recipe or a recipe web page. List what to buy, one ingredient per line, with its amount first, like "2 cups flour". Combine duplicates and skip water. No headings, numbering, bullets or other text.',
+    inside: [
+      { action: 'Get Text from Input', detail: 'The recipe page you shared.' },
+      CALL,
+      { action: 'Add New Reminder', detail: 'One per ingredient.' },
+    ],
+  },
+  {
+    slug: 'card-to-contact',
+    icon: 'person',
+    color: 'indigo',
+    name: 'Card to Contact',
+    tagline: 'Snap a business card or share an email signature. Get a contact, ready to save.',
+    category: 'Capture',
+    trigger: 'Home Screen or Share Sheet',
+    runTip: 'Run it to snap a business card, or share a screenshot or signature text to it. Tap Create New Contact to save.',
+    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    typicalTokens: [300, 150],
+    format: 'vcard',
+    formatError: 'Couldn’t find contact details in that. Try a sharper photo of the card.',
+    prompt: 'The input is text from a business card, email signature or screenshot. Reply with only a vCard 3.0 for the person in it, in normal capitalization, following this example and leaving out any line whose details are missing:\nBEGIN:VCARD\nVERSION:3.0\nN:Rivera;Sam;;;\nFN:Sam Rivera\nORG:Acme Co\nTITLE:Head of Sales\nTEL;TYPE=CELL:+1 415 555 0100\nEMAIL;TYPE=INTERNET:sam@acme.co\nURL:https://acme.co\nADR;TYPE=WORK:;;1 Main St;Springfield;CA;94000;USA\nEND:VCARD',
+    inside: [
+      { action: 'Take Photo', detail: 'Or the image or text you shared.' },
+      { action: 'Extract Text from Image', detail: 'Runs on your iPhone. Only the text is sent.' },
+      CALL,
+      { action: 'Quick Look', detail: 'Shows the contact card so you can check it and tap Create New Contact.' },
+    ],
+  },
+  {
+    slug: 'guest-wifi-qr',
+    icon: 'wifi',
+    color: 'sky',
+    name: 'Guest Wi-Fi QR',
+    tagline: 'Make a code guests scan to join your Wi-Fi. No more spelling out the password.',
+    category: 'Everyday',
+    trigger: 'Home Screen',
+    runTip: 'Run it at home. It fills in your network name and asks for the password, then shows the code. Save it to Photos or print it for the fridge.',
+    inside: [
+      { action: 'Get Network Details', detail: 'The name of the Wi-Fi you’re on.' },
+      { action: 'Ask for Input', detail: 'Your Wi-Fi password. iOS never shares it with shortcuts.' },
+      { action: 'Generate QR Code', detail: 'Made on your iPhone. Nothing is sent anywhere.' },
+      { action: 'Quick Look' },
+    ],
+  },
   {
     slug: 'summarize-anything',
     icon: 'doc',
@@ -162,7 +275,10 @@ export const AUTOMATIONS = [
   },
 ];
 
-// Typical cost in USD at current prices and markup, for display.
-for (const a of AUTOMATIONS) a.typicalCost = costMicros(a.model, ...a.typicalTokens) / 1e6;
+// Typical cost in USD at current prices and markup, for display. Free ones cost nothing.
+for (const a of AUTOMATIONS) {
+  a.free = !a.model;
+  a.typicalCost = a.free ? 0 : costMicros(a.model, ...a.typicalTokens) / 1e6;
+}
 
 export const findAutomation = (slug) => AUTOMATIONS.find((a) => a.slug === slug);

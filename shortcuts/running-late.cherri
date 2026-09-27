@@ -1,0 +1,26 @@
+#define color darkorange
+#define glyph car
+
+action 'gettraveltime' travelTime(variable destination: 'WFDestination'): text
+
+action 'sendmessage' textSomeone(text message: 'WFSendMessageContent', bool ?askFirst: 'ShowWhenRun' = true)
+
+action 'getupcomingevents' upcomingEvents(number count: 'WFGetUpcomingItemCount'): variable
+
+// Your next event with a place, how long Maps says it takes to get there, and a text you send.
+const events = upcomingEvents(1)
+@title = ""
+@place = ""
+for event in events {
+    @title = getEventDetail(@event, "Title")
+    @place = getEventDetail(@event, "Location")
+}
+if !@place {
+    @place = prompt("Where are you headed?", "Text", "")
+}
+const eta = travelTime(@place)
+@message = "Running a little late, sorry! I’m about {eta} away."
+if @title {
+    @message = "Running a little late for {@title}, sorry! I’m about {eta} away."
+}
+textSomeone("{@message}")

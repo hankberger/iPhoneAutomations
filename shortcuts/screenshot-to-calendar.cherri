@@ -1,0 +1,43 @@
+#define color red
+#define glyph calendar
+#define from sharesheet
+#define inputs image, text, richtext
+
+action 'addnewevent' addEvent(
+    text title: 'WFCalendarItemTitle',
+    text start: 'WFCalendarItemStartDate',
+    text end: 'WFCalendarItemEndDate',
+    bool allDay: 'WFCalendarItemAllDay',
+    text location: 'WFCalendarItemLocation',
+    text notes: 'WFCalendarItemNotes'
+)
+
+// Shared text or image, or your latest screenshot. Text in images is read on your iPhone.
+@source = ShortcutInput
+if !ShortcutInput {
+    @source = getLatestScreenshots(1)
+}
+@details = ""
+const kind = typeOf(@source)
+if kind == "Image" {
+    @details = getTextFromImage(@source)
+} else {
+    @details = getText(@source)
+}
+const today = formatDate(CurrentDate, "Long")
+const input = "Today is {today}.\n\n{@details}"
+// @call
+const event = getDictionary(result)
+const title = getValue(event, "title")
+const starts = getValue(event, "start")
+const ends = getValue(event, "end")
+const allDay = getValue(event, "all_day")
+const place = getValue(event, "location")
+const notes = getValue(event, "notes")
+// The server leaves out keys that are false or empty, so a plain If is enough here.
+@isAllDay = false
+if allDay {
+    @isAllDay = true
+}
+addEvent("{title}", "{starts}", "{ends}", @isAllDay, "{place}", "{notes}")
+showNotification("{starts} {place}", "Added {title}")

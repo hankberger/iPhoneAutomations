@@ -1,0 +1,17 @@
+#define color teal
+#define glyph camera
+#define from sharesheet
+#define inputs image
+
+// Shared photo, or take one. Shrunk and sent as JPEG so a run costs about the same every time.
+@photo = ShortcutInput
+if !ShortcutInput {
+    @photo = takePhoto()
+}
+const question = prompt("What do you want to know?", "Text", "What is this?")
+const small = resizeImageByLongestEdge(@photo, "1024")
+const jpeg = convertToJPEG(small, 0.7, false)
+const image = base64Encode(jpeg)
+const input = "{question}"
+// @call
+show("{result}")

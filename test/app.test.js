@@ -7,14 +7,15 @@ import { createBilling } from '../src/billing.js';
 // Fake Workers AI binding: records calls and reports fixed usage so billing is predictable.
 function fakeAi() {
   const calls = [];
-  const run = async (model, input) => {
+  const fake = { calls, response: 'hi' };
+  fake.run = async (model, input) => {
     calls.push({ model, input });
     if (model === '@cf/meta/llama-3.1-8b-instruct-fp8-fast' && input.messages?.[0]?.content === 'fail') {
       throw new Error('AiError: 5006: bad input');
     }
-    return { response: 'hi', usage: { prompt_tokens: 1000, completion_tokens: 200, total_tokens: 1200 } };
+    return { response: fake.response, usage: { prompt_tokens: 1000, completion_tokens: 200, total_tokens: 1200 } };
   };
-  return { run, calls };
+  return fake;
 }
 
 async function boot() {
@@ -171,4 +172,56 @@ test('signup, login, csrf, keys and metered Cloudflare proxy', async () => {
   assert.equal((await req('/account')).status, 302);
   assert.equal((await form('/login', { email: 'a@b.co', password: 'wrong password!' })).status, 401);
   assert.equal((await form('/login', { email: 'a@b.co', password: 'correct horse battery' })).status, 303);
+});
+
+test('free shortcuts install without an account and never call the API', async () => {
+  const { req } = await boot();
+  const detail = await (await req('/automations/guest-wifi-qr')).text();
+  assert.match(detail, /href="\/automations\/guest-wifi-qr\/install"/, 'no sign-in detour');
+  assert.doesNotMatch(detail, /YOUR_KEY/);
+  const res = await req('/automations/guest-wifi-qr/install');
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /shortcuts:\/\/import-shortcut\?url=http%3A%2F%2Flocalhost%2Fshortcuts%2Fguest-wifi-qr\.shortcut/);
+  assert.doesNotMatch(html, /aa_live_|data-key/);
+  assert.match(await (await req('/automations')).text(), /Free, no AI/);
+  assert.equal((await req('/automations/running-late/install')).status, 200);
+});
+
+test('photo, event and contact shortcuts', async () => {
+  const { db, ai, req, form } = await boot();
+  await form('/signup', { email: 'p@b.co', password: 'correct horse battery' });
+  const key = (await (await req('/automations/whats-this/install')).text()).match(/data-key="(aa_live_[\w-]+)"/)[1];
+  await createBilling(db, { stripeKey: '' }).fulfillCheckout({ id: 'cs_test_3', payment_status: 'paid', metadata: { user_id: '1', credit_micros: '1000000' } });
+  const run = (slug, body) => req(`/api/v1/run/${slug}`, {
+    method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+
+  // Shortcuts' Base64 Encode wraps lines; the photo goes up as a data URL next to the question.
+  const photo = `/9j/${'A'.repeat(76)}\n${'B'.repeat(300_000)}`;
+  let res = await run('whats-this', { input: 'What is this?', image: photo });
+  assert.equal(res.status, 200, 'a large photo is not held to the text size limit');
+  let call = ai.calls.at(-1);
+  assert.equal(call.model, '@cf/mistralai/mistral-small-3.1-24b-instruct');
+  const [text, image] = call.input.messages[0].content;
+  assert.match(text.text, /<input>\nWhat is this\?\n<\/input>/);
+  assert.equal(image.image_url.url, `data:image/jpeg;base64,/9j/${'A'.repeat(76)}${'B'.repeat(300_000)}`);
+  assert.equal((await run('whats-this', { input: 'What is this?' })).status, 400, 'needs a photo');
+  assert.equal((await run('whats-this', { input: 'x', image: 'not an image' })).status, 400);
+
+  // Event JSON comes back clean, with false and empty keys dropped for the shortcut's If checks.
+  ai.response = 'Sure! {"title": "Pottery class", "start": "2026-10-02 18:00", "end": "2026-10-02 19:00", "all_day": false, "location": ""} Enjoy.';
+  res = await run('screenshot-to-calendar', { input: 'Today is Sep 27.\n\nPottery Fri 6pm' });
+  assert.equal(res.status, 200);
+  assert.deepEqual(JSON.parse((await res.json()).text), { title: 'Pottery class', start: '2026-10-02 18:00', end: '2026-10-02 19:00' });
+  ai.response = 'I could not find an event.';
+  res = await run('screenshot-to-calendar', { input: 'hello' });
+  assert.equal(res.status, 422);
+  assert.match((await res.json()).error, /Couldn’t find an event/);
+
+  ai.response = 'Here you go:\nBEGIN:VCARD\nVERSION:3.0\nN:Lee;Ada\nFN:Ada Lee\nEND:VCARD\nThanks';
+  res = await run('card-to-contact', { input: 'Ada Lee' });
+  assert.equal((await res.json()).text, 'BEGIN:VCARD\r\nVERSION:3.0\r\nN:Lee;Ada\r\nFN:Ada Lee\r\nEND:VCARD');
+
+  assert.equal((await run('guest-wifi-qr', { input: 'x' })).status, 400, 'free shortcuts do not use AI');
 });
