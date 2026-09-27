@@ -1,0 +1,7 @@
+# Local secrets for `npm run dev` (wrangler dev). Copy to .dev.vars; never commit it.
+# Test key from dashboard.stripe.com/test/apikeys
+STRIPE_SECRET_KEY=
+# From `stripe listen --forward-to localhost:8787/webhooks/stripe`
+STRIPE_WEBHOOK_SECRET=
+# Only for `npm run dev:local`: a token with Workers AI Read, used instead of the AI binding.
+CLOUDFLARE_API_TOKEN=

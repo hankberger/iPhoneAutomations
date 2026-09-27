@@ -3,16 +3,22 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/server.js",
-    "dev": "node --watch --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "wrangler dev",
+    "dev:local": "wrangler d1 migrations apply advanced-automations --local --env local && wrangler dev --env local",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply advanced-automations --local",
+    "db:migrate:remote": "wrangler d1 migrations apply advanced-automations --remote",
     "mockups": "node --env-file-if-exists=.env scripts/generate-mockups.mjs",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
   },
   "license": "ISC",
   "dependencies": {
-    "express": "^4.22.3",
+    "hono": "^4.13.9",
     "stripe": "^22.6.2"
   },
   "type": "module",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "wrangler": "^4.141.0"
+  }
 }

@@ -1,0 +1,200 @@
+import { Hono } from 'hono';
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
+import { createAuth, validateCredentials, rateLimiter, safeEqual, SESSION_COOKIE } from './auth.js';
+import { createBilling } from './billing.js';
+import { createInference, restAi } from './inference.js';
+import { findAutomation, CATEGORIES } from './catalog.js';
+import * as views from './views.js';
+
+const FORM_LIMIT = 20 * 1024;
+const JSON_LIMIT = 1024 * 1024;
+const authLimit = rateLimiter({ windowMs: 15 * 60e3, max: 20 });
+
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self'; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'",
+};
+
+const app = new Hono();
+
+// Services are cheap wrappers over the bindings, so build them per request.
+app.use(async (c, next) => {
+  const appUrl = (c.env.APP_URL || new URL(c.req.url).origin).replace(/\/$/, '');
+  const auth = createAuth(c.env.DB);
+  const billing = createBilling(c.env.DB, { stripeKey: c.env.STRIPE_SECRET_KEY, webhookSecret: c.env.STRIPE_WEBHOOK_SECRET, appUrl });
+  c.set('ctx', {
+    appUrl, auth, billing,
+    inference: createInference(billing, {
+      ai: c.env.AI ?? (c.env.CLOUDFLARE_API_TOKEN ? restAi(c.env.CLOUDFLARE_ACCOUNT_ID, c.env.CLOUDFLARE_API_TOKEN) : null),
+    }),
+    apiUrl: `${appUrl}/api/v1/generate`,
+    secure: appUrl.startsWith('https://'),
+  });
+  await next();
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) c.header(k, v);
+});
+
+// Reads a form body with a size cap. Returns null when it is too large.
+async function readForm(c) {
+  const text = await c.req.text();
+  if (text.length > FORM_LIMIT) return null;
+  return Object.fromEntries(new URLSearchParams(text));
+}
+
+const loadUser = async (c, next) => {
+  const { auth } = c.get('ctx');
+  c.set('sessionToken', getCookie(c, SESSION_COOKIE));
+  c.set('user', await auth.sessionUser(c.get('sessionToken')));
+  await next();
+};
+
+const setSession = async (c, userId) => {
+  const { auth, secure } = c.get('ctx');
+  const { token, maxAge } = await auth.startSession(userId);
+  setCookie(c, SESSION_COOKIE, token, { httpOnly: true, sameSite: 'Lax', secure, maxAge, path: '/' });
+};
+
+// Requires a signed-in user, and for POSTs a valid CSRF token. The parsed form is on c.get('form').
+const requireUser = async (c, next) => {
+  const user = c.get('user');
+  if (!user) return c.redirect(`/login?next=${encodeURIComponent(new URL(c.req.url).pathname + new URL(c.req.url).search)}`, 302);
+  if (c.req.method === 'POST') {
+    const form = await readForm(c);
+    if (!form) return c.text('Form is too large.', 413);
+    if (!safeEqual(form.csrf || '', user.csrf)) return c.text('Invalid form token. Reload the page and try again.', 403);
+    c.set('form', form);
+  }
+  await next();
+};
+
+const safeNext = (n) => (typeof n === 'string' && /^\/(?!\/)/.test(n) ? n : '/account');
+
+// Stripe needs the raw body to verify the signature.
+app.post('/webhooks/stripe', async (c) => {
+  try {
+    const type = await c.get('ctx').billing.handleWebhook(await c.req.text(), c.req.header('stripe-signature'));
+    return c.json({ received: true, type });
+  } catch (err) {
+    return c.text(`Webhook error: ${err.message}`, 400);
+  }
+});
+
+// Inference API for Shortcuts. Callers authenticate with their own aa_live_ key;
+// the Workers AI binding bills our Cloudflare account and no token leaves the server.
+const api = (handler) => async (c) => {
+  const { auth } = c.get('ctx');
+  const user = await auth.apiKeyUser((c.req.header('authorization') || '').replace(/^Bearer\s+/i, '').trim());
+  if (!user) return c.json({ error: 'Missing or invalid API key.' }, 401);
+  let body = {};
+  if (c.req.method === 'POST') {
+    const text = await c.req.text();
+    if (text.length > JSON_LIMIT) return c.json({ error: 'Request is too large.' }, 413);
+    try {
+      body = text ? JSON.parse(text) : {};
+    } catch {
+      return c.json({ error: 'Body must be JSON.' }, 400);
+    }
+  }
+  const { status, json } = await handler(c, user, body ?? {});
+  return c.json(json, status);
+};
+app.post('/api/v1/generate', api((c, user, body) => c.get('ctx').inference.generate(user, body)));
+// Mirrors https://api.cloudflare.com/client/v4/accounts/{id}/ai/run/{model}
+app.post('/api/v1/ai/run/:model{.+}', api((c, user, body) => c.get('ctx').inference.run(user, c.req.param('model'), body)));
+app.get('/api/v1/balance', api(async (c, user) => ({ status: 200, json: { balance_usd: (await c.get('ctx').billing.balance(user.id)) / 1e6 } })));
+
+app.use(loadUser);
+
+// Pages
+app.get('/', (c) => c.html(views.landing({ user: c.get('user') })));
+app.get('/automations', (c) => {
+  const q = c.req.query('category');
+  const category = CATEGORIES.includes(q) ? q : '';
+  return c.html(views.catalog({ user: c.get('user'), category }));
+});
+app.get('/automations/:slug', (c) => {
+  const a = findAutomation(c.req.param('slug'));
+  if (!a) return c.html(views.notFound({ user: c.get('user') }), 404);
+  return c.html(views.automationDetail({ user: c.get('user'), a, apiUrl: c.get('ctx').apiUrl }));
+});
+app.get('/pricing', (c) => c.html(views.pricing({ user: c.get('user') })));
+
+// Auth
+for (const mode of ['login', 'signup']) {
+  app.get(`/${mode}`, (c) => (c.get('user') ? c.redirect('/account', 302) : c.html(views.authPage({ mode, next: c.req.query('next') }))));
+  app.post(`/${mode}`, async (c) => {
+    const body = (await readForm(c)) ?? {};
+    const render = (status, error) => c.html(views.authPage({ mode, error, email: body.email, next: body.next }), status);
+    if (!authLimit(c.req.header('cf-connecting-ip') || 'local')) return render(429, 'Too many attempts. Wait a few minutes and try again.');
+    const creds = validateCredentials(body.email, body.password);
+    if (creds.error) return render(400, mode === 'login' ? 'That email and password do not match.' : creds.error);
+    const result = await c.get('ctx').auth[mode](creds.email, creds.password);
+    if (result.error) return render(mode === 'login' ? 401 : 409, result.error);
+    await setSession(c, result.userId);
+    return c.redirect(safeNext(body.next), 303);
+  });
+}
+app.post('/logout', requireUser, async (c) => {
+  await c.get('ctx').auth.endSession(c.get('sessionToken'));
+  deleteCookie(c, SESSION_COOKIE, { path: '/' });
+  return c.redirect('/', 303);
+});
+
+// Account
+const renderAccount = async (c, extra = {}, status = 200) => {
+  const { auth, billing, inference, apiUrl } = c.get('ctx');
+  const user = c.get('user');
+  const [balance, keys, history] = await Promise.all([billing.balance(user.id), auth.listKeys(user.id), billing.history(user.id)]);
+  return c.html(views.account({
+    user: { ...user, balance_micros: balance },
+    keys, history,
+    billingEnabled: billing.enabled,
+    inferenceEnabled: inference.enabled,
+    apiUrl,
+    ...extra,
+  }), status);
+};
+
+app.get('/account', requireUser, async (c) => {
+  let notice;
+  const checkout = c.req.query('checkout');
+  if (checkout === 'cancelled') notice = { tone: 'neutral', text: 'Checkout cancelled. You were not charged.' };
+  else if (typeof checkout === 'string' && checkout.startsWith('cs_')) {
+    try {
+      await c.get('ctx').billing.confirmCheckout(checkout, c.get('user').id);
+      notice = { tone: 'positive', text: 'Payment received. Your credit has been added.' };
+    } catch {
+      notice = { tone: 'neutral', text: 'Payment is processing. Your balance will update shortly.' };
+    }
+  }
+  return renderAccount(c, { notice });
+});
+
+app.post('/account/topup', requireUser, async (c) => {
+  try {
+    const url = await c.get('ctx').billing.createCheckout(c.get('user'), Number(c.get('form').amount));
+    return c.redirect(url, 303);
+  } catch (err) {
+    return renderAccount(c, { notice: { tone: 'negative', text: err.message } }, 400);
+  }
+});
+
+app.post('/account/keys', requireUser, async (c) => {
+  const name = String(c.get('form').name || '').trim().slice(0, 60) || 'My iPhone';
+  return renderAccount(c, { newKey: await c.get('ctx').auth.createApiKey(c.get('user').id, name) });
+});
+
+app.post('/account/keys/:id/revoke', requireUser, async (c) => {
+  await c.get('ctx').auth.revokeKey(c.get('user').id, Number(c.req.param('id')));
+  return c.redirect('/account#keys', 303);
+});
+
+app.notFound((c) => c.html(views.notFound({ user: c.get('user') }), 404));
+app.onError((err, c) => {
+  console.error(err);
+  return c.json({ error: 'Something went wrong.' }, 500);
+});
+
+export default app;
