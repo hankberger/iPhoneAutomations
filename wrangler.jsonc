@@ -12,8 +12,7 @@
     {
       "binding": "DB",
       "database_name": "advanced-automations",
-      // Replace with the id `wrangler d1 create advanced-automations` prints.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "fafe6876-77c8-4787-b299-93d2c8d0eb45",
       "migrations_dir": "migrations"
     }
   ],

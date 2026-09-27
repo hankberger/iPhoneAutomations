@@ -28,7 +28,7 @@ The site runs without any keys. Top-up buttons and the API show a "not configure
 
 ```bash
 npx wrangler login
-npx wrangler d1 create advanced-automations     # paste the database_id into wrangler.jsonc
+# D1 database advanced-automations already exists; its id is in wrangler.jsonc
 npm run db:migrate:remote
 npx wrangler secret put STRIPE_SECRET_KEY
 npx wrangler secret put STRIPE_WEBHOOK_SECRET   # from the Stripe dashboard webhook endpoint
