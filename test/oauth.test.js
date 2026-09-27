@@ -167,3 +167,34 @@ test('rejects bad state, wrong audience, stale nonce and unverified email', asyn
   assert.match(await res.text(), /no verified email/);
   assert.equal((await req('/account')).status, 302);
 });
+
+test('a new Google account gets starter credit once, and the Get flow lands on the install page', async () => {
+  const { req, signIn, db } = await boot();
+  const fake = fakeProviders();
+  const next = '/automations/summarize-anything/install';
+  assert.match(await (await req(`/signup?next=${encodeURIComponent(next)}`)).text(), /Get Summarize Anything[\s\S]*25¢ of free credit/);
+  let res = await signIn('google', { sub: 'g-9', email: 'fresh@example.com', email_verified: true }, fake, { next });
+  assert.equal(res.headers.get('location'), next);
+  const balance = () => db.raw.prepare('SELECT balance_micros AS b FROM users').get().b;
+  assert.equal(balance(), 250_000);
+  assert.equal(db.raw.prepare("SELECT description FROM ledger WHERE kind = 'topup'").get().description, 'Welcome credit');
+
+  res = await req(next);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  const html = await res.text();
+  assert.match(html, /shortcuts:\/\/import-shortcut\?url=http%3A%2F%2Flocalhost%2Fshortcuts%2Fsummarize-anything\.shortcut&amp;name=Summarize%20Anything/);
+  assert.match(html, /data-key="aa_live_/);
+  assert.match(html, /\$0\.25 of credit/);
+
+  // Signing in again does not add more credit.
+  await signIn('google', { sub: 'g-9', email: 'fresh@example.com', email_verified: true }, fake);
+  assert.equal(balance(), 250_000);
+});
+
+test('starter credit can be turned off', async () => {
+  const { env, signIn, db } = await boot();
+  env.STARTER_CREDIT_USD = '0';
+  await signIn('apple', { sub: 'a-9', email: 'x@example.com', email_verified: 'true' }, fakeProviders());
+  assert.equal(db.raw.prepare('SELECT balance_micros AS b FROM users').get().b, 0);
+});

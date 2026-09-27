@@ -1,11 +1,10 @@
 import { costMicros } from './inference.js';
 
-// Each automation is a Shortcut the user builds from the listed actions.
-// Steps use the real action names from the iOS Shortcuts app.
-const callApi = (extra = '') => ({
-  action: 'Get Contents of URL',
-  detail: `POST {{API_URL}} · Header Authorization: Bearer YOUR_KEY · JSON body: prompt${extra}`,
-});
+// Each automation ships as a signed shortcut built from shortcuts/<slug>.cherri
+// (npm run shortcuts). The shortcut sends its input to /api/v1/run/<slug>; the prompt
+// and model live here, so they can change without anyone reinstalling.
+// `inside` lists the shortcut's actions in plain words, for people who want to check.
+const CALL = { action: 'Ask Advanced Automations', detail: 'Sends the text to our API with your key. Nothing else leaves your phone.' };
 
 export const CATEGORIES = ['Writing', 'Productivity', 'Capture', 'Everyday'];
 
@@ -18,15 +17,14 @@ export const AUTOMATIONS = [
     tagline: 'Share any article, email or note and get a three-line summary.',
     category: 'Productivity',
     trigger: 'Share Sheet',
+    runTip: 'In Safari, Mail or Notes, tap Share and pick Summarize Anything. Run it on its own to summarize your clipboard.',
     model: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
     typicalTokens: [900, 120],
     prompt: 'Summarize the input in three short lines. Lead with the single most important point.',
-    steps: [
-      { action: 'Receive Text, Articles, URLs from Share Sheet', detail: 'Turn on "Show in Share Sheet" in the shortcut details.' },
-      { action: 'Get Text from Input', detail: 'Converts shared articles and pages to plain text.' },
-      callApi(', input = Text'),
-      { action: 'Get Dictionary Value', detail: 'Key: text' },
-      { action: 'Quick Look', detail: 'Or Show Result.' },
+    inside: [
+      { action: 'Get Text from Input', detail: 'Whatever you shared, or your clipboard.' },
+      CALL,
+      { action: 'Quick Look', detail: 'Shows the summary.' },
     ],
   },
   {
@@ -37,15 +35,14 @@ export const AUTOMATIONS = [
     tagline: 'Copy a message, run it, and get a warm, concise reply on your clipboard.',
     category: 'Writing',
     trigger: 'Back Tap or Action Button',
+    runTip: 'Copy a message, then run it. For one tap, set it as your Action Button or Back Tap (Settings, Accessibility, Touch, Back Tap).',
     model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
     typicalTokens: [300, 150],
     prompt: 'Draft a friendly, concise reply to this message. Match its tone. Output only the reply.',
-    steps: [
+    inside: [
       { action: 'Get Clipboard' },
-      callApi(', input = Clipboard'),
-      { action: 'Get Dictionary Value', detail: 'Key: text' },
-      { action: 'Copy to Clipboard' },
-      { action: 'Show Notification', detail: 'Reply copied.' },
+      CALL,
+      { action: 'Copy to Clipboard', detail: 'Then a notification says the reply is ready to paste.' },
     ],
   },
   {
@@ -56,15 +53,16 @@ export const AUTOMATIONS = [
     tagline: 'Rewrite selected text as friendlier, firmer, or more formal.',
     category: 'Writing',
     trigger: 'Share Sheet',
+    runTip: 'Select text, tap Share and pick Tone Shifter. The rewrite lands on your clipboard.',
     model: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
     typicalTokens: [250, 120],
-    prompt: 'Rewrite the input in a {{Chosen Item}} tone. Keep the meaning. Output only the rewrite.',
-    steps: [
-      { action: 'Receive Text from Share Sheet' },
-      { action: 'Choose from Menu', detail: 'Friendlier / Firmer / More formal / Shorter' },
-      callApi(' (with the chosen tone), input = Shortcut Input'),
-      { action: 'Get Dictionary Value', detail: 'Key: text' },
-      { action: 'Copy to Clipboard' },
+    choices: ['Friendlier', 'Firmer', 'More formal', 'Shorter'],
+    prompt: 'Rewrite the input so it reads {{choice}}. Keep the meaning. Output only the rewrite.',
+    inside: [
+      { action: 'Get Text from Input' },
+      { action: 'Choose from List', detail: 'Friendlier, Firmer, More formal or Shorter.' },
+      CALL,
+      { action: 'Copy to Clipboard', detail: 'And shows the rewrite.' },
     ],
   },
   {
@@ -75,14 +73,14 @@ export const AUTOMATIONS = [
     tagline: 'Talk for a minute. Get a tidy note with action items in Apple Notes.',
     category: 'Capture',
     trigger: 'Action Button or Siri',
+    runTip: 'Say "Hey Siri, Voice to Notes", or set it as your Action Button. It stops listening when you pause.',
     model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
     typicalTokens: [500, 250],
     prompt: 'Turn this dictation into a clean note: a title line, a short summary, then a checklist of action items.',
-    steps: [
-      { action: 'Dictate Text', detail: 'Stop Listening: After Pause' },
-      callApi(', input = Dictated Text'),
-      { action: 'Get Dictionary Value', detail: 'Key: text' },
-      { action: 'Create Note', detail: 'Folder: Inbox' },
+    inside: [
+      { action: 'Dictate Text', detail: 'Transcribed on your iPhone.' },
+      CALL,
+      { action: 'Create Note', detail: 'In Apple Notes.' },
     ],
   },
   {
@@ -90,18 +88,18 @@ export const AUTOMATIONS = [
     icon: 'bell',
     color: 'yellow',
     name: 'Smart Reminders',
-    tagline: 'Paste a messy list or email and get real reminders with due dates.',
+    tagline: 'Share a messy list or email and get one clean reminder per task.',
     category: 'Productivity',
     trigger: 'Share Sheet',
+    runTip: 'Share an email or note, or copy a list and run it. Each task becomes its own reminder.',
     model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
     typicalTokens: [400, 150],
-    prompt: 'Extract tasks from the input. Return one task per line as: task | due date in ISO 8601 or blank. No other text.',
-    steps: [
-      { action: 'Receive Text from Share Sheet' },
-      callApi(', input = Shortcut Input'),
-      { action: 'Get Dictionary Value', detail: 'Key: text' },
-      { action: 'Split Text', detail: 'By New Lines' },
-      { action: 'Repeat with Each', detail: 'Split Text by "|", then Add New Reminder with title and due date.' },
+    prompt: 'Extract the tasks from the input. Output one short task per line, starting with a verb, and add any deadline in brackets at the end, like "Send invoice [Fri]". No numbering, bullets or other text.',
+    inside: [
+      { action: 'Get Text from Input', detail: 'Whatever you shared, or your clipboard.' },
+      CALL,
+      { action: 'Split Text', detail: 'One line per task.' },
+      { action: 'Add New Reminder', detail: 'For each task.' },
     ],
   },
   {
@@ -109,18 +107,18 @@ export const AUTOMATIONS = [
     icon: 'receipt',
     color: 'pink',
     name: 'Receipt Reader',
-    tagline: 'Scan a receipt and log merchant, date and total to a spreadsheet row.',
+    tagline: 'Snap a receipt and log merchant, date and total to a spreadsheet.',
     category: 'Capture',
     trigger: 'Home Screen',
+    runTip: 'Add it to your Home Screen. Rows go to Receipts.csv in iCloud Drive, in the Shortcuts folder.',
     model: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
     typicalTokens: [300, 40],
-    prompt: 'From this receipt text, output one CSV line: merchant,date (YYYY-MM-DD),total. No header.',
-    steps: [
+    prompt: 'From this receipt text, output one CSV line: merchant,date (YYYY-MM-DD),total. No header and no other text.',
+    inside: [
       { action: 'Take Photo' },
-      { action: 'Extract Text from Image', detail: 'Runs on device.' },
-      callApi(', input = Text from Image'),
-      { action: 'Get Dictionary Value', detail: 'Key: text' },
-      { action: 'Append to Text File', detail: 'iCloud Drive/Receipts.csv' },
+      { action: 'Extract Text from Image', detail: 'Runs on your iPhone. Only the text is sent.' },
+      CALL,
+      { action: 'Append to Text File', detail: 'Receipts.csv in iCloud Drive.' },
     ],
   },
   {
@@ -131,14 +129,15 @@ export const AUTOMATIONS = [
     tagline: 'Natural translation that keeps names, tone and formatting intact.',
     category: 'Everyday',
     trigger: 'Share Sheet',
+    runTip: 'Select text or share a page, tap Share and pick Translate Selection.',
     model: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
     typicalTokens: [300, 300],
-    prompt: 'Translate the input to {{Language}}. Keep names and formatting. Output only the translation.',
-    steps: [
-      { action: 'Receive Text from Share Sheet' },
-      { action: 'Choose from List', detail: 'Your usual languages' },
-      callApi(' (with the language), input = Shortcut Input'),
-      { action: 'Get Dictionary Value', detail: 'Key: text' },
+    choices: ['English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Japanese', 'Korean', 'Chinese'],
+    prompt: 'Translate the input to {{choice}}. Keep names and formatting. Output only the translation.',
+    inside: [
+      { action: 'Get Text from Input' },
+      { action: 'Choose from List', detail: 'Pick the language.' },
+      CALL,
       { action: 'Show Result' },
     ],
   },
@@ -150,16 +149,15 @@ export const AUTOMATIONS = [
     tagline: 'A two-paragraph plan for your day from your calendar and reminders.',
     category: 'Everyday',
     trigger: 'Personal Automation at 7:00',
+    runTip: 'In Shortcuts, open Automation, tap +, pick Time of Day and choose Morning Brief so it runs every morning.',
     model: '@cf/mistralai/mistral-small-3.1-24b-instruct',
     typicalTokens: [700, 350],
-    prompt: 'Here are my events and reminders for today. Write a calm two-paragraph plan for the day, flagging conflicts.',
-    steps: [
-      { action: 'Find Calendar Events', detail: 'Start Date is Today' },
-      { action: 'Find Reminders', detail: 'Due Date is Today, Is Not Completed' },
-      { action: 'Text', detail: 'Combine both lists.' },
-      callApi(', input = Text'),
-      { action: 'Get Dictionary Value', detail: 'Key: text' },
-      { action: 'Speak Text', detail: 'Or Show Notification.' },
+    prompt: 'Here are my upcoming events and reminders. Write a calm two-paragraph plan for today only, ignoring anything on later days, and flag conflicts.',
+    inside: [
+      { action: 'Get Upcoming Events' },
+      { action: 'Get Upcoming Reminders' },
+      CALL,
+      { action: 'Speak Text', detail: 'And shows the plan.' },
     ],
   },
 ];

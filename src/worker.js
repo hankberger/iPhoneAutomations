@@ -5,11 +5,13 @@ import { createBilling } from './billing.js';
 import { createInference, restAi } from './inference.js';
 import { oauthProviders, startFlow, finishFlow } from './oauth.js';
 import { findAutomation, CATEGORIES } from './catalog.js';
+import { MICROS } from './billing.js';
 import * as views from './views.js';
 
 const FORM_LIMIT = 20 * 1024;
 const JSON_LIMIT = 1024 * 1024;
 const OAUTH_COOKIE = 'aa_oauth';
+const STARTER_CREDIT_USD = 0.25;
 const authLimit = rateLimiter({ windowMs: 15 * 60e3, max: 20 });
 
 const SECURITY_HEADERS = {
@@ -36,7 +38,9 @@ app.use(async (c, next) => {
 // Services are cheap wrappers over the bindings, so build them per request.
 app.use(async (c, next) => {
   const appUrl = (c.env.APP_URL || new URL(c.req.url).origin).replace(/\/$/, '');
-  const auth = createAuth(c.env.DB);
+  const starterUsd = c.env.STARTER_CREDIT_USD === undefined ? STARTER_CREDIT_USD : Number(c.env.STARTER_CREDIT_USD);
+  const starterMicros = Math.round((starterUsd || 0) * MICROS);
+  const auth = createAuth(c.env.DB, { starterMicros });
   const billing = createBilling(c.env.DB, { stripeKey: c.env.STRIPE_SECRET_KEY, webhookSecret: c.env.STRIPE_WEBHOOK_SECRET, appUrl });
   c.set('ctx', {
     appUrl, auth, billing,
@@ -44,6 +48,7 @@ app.use(async (c, next) => {
       ai: c.env.AI ?? (c.env.CLOUDFLARE_API_TOKEN ? restAi(c.env.CLOUDFLARE_ACCOUNT_ID, c.env.CLOUDFLARE_API_TOKEN) : null),
     }),
     oauth: oauthProviders(c.env),
+    starterMicros,
     apiUrl: `${appUrl}/api/v1/generate`,
     secure: appUrl.startsWith('https://'),
   });
@@ -98,32 +103,58 @@ app.post('/webhooks/stripe', async (c) => {
 
 // Inference API for Shortcuts. Callers authenticate with their own aa_live_ key;
 // the Workers AI binding bills our Cloudflare account and no token leaves the server.
-const api = (handler) => async (c) => {
-  const { auth } = c.get('ctx');
-  const user = await auth.apiKeyUser((c.req.header('authorization') || '').replace(/^Bearer\s+/i, '').trim());
-  if (!user) return c.json({ error: 'Missing or invalid API key.' }, 401);
-  let body = {};
-  if (c.req.method === 'POST') {
-    const text = await c.req.text();
-    if (text.length > JSON_LIMIT) return c.json({ error: 'Request is too large.' }, 413);
-    try {
-      body = text ? JSON.parse(text) : {};
-    } catch {
-      return c.json({ error: 'Body must be JSON.' }, 400);
-    }
+const bearerUser = (c) => c.get('ctx').auth.apiKeyUser((c.req.header('authorization') || '').replace(/^Bearer\s+/i, '').trim());
+
+// Returns { body } or { error: [json, status] }.
+async function readJson(c) {
+  if (c.req.method !== 'POST') return { body: {} };
+  const text = await c.req.text();
+  if (text.length > JSON_LIMIT) return { error: [{ error: 'Request is too large.' }, 413] };
+  try {
+    const body = text ? JSON.parse(text) : {};
+    return { body: body && typeof body === 'object' ? body : {} };
+  } catch {
+    return { error: [{ error: 'Body must be JSON.' }, 400] };
   }
-  const { status, json } = await handler(c, user, body ?? {});
+}
+
+const api = (handler) => async (c) => {
+  const user = await bearerUser(c);
+  if (!user) return c.json({ error: 'Missing or invalid API key.' }, 401);
+  const { body, error } = await readJson(c);
+  if (error) return c.json(...error);
+  const { status, json } = await handler(c, user, body);
   return c.json(json, status);
 };
 app.post('/api/v1/generate', api((c, user, body) => c.get('ctx').inference.generate(user, body)));
 // Mirrors https://api.cloudflare.com/client/v4/accounts/{id}/ai/run/{model}
 app.post('/api/v1/ai/run/:model{.+}', api((c, user, body) => c.get('ctx').inference.run(user, c.req.param('model'), body)));
+
+// What the installed shortcuts call. A shortcut shows `error` in an alert as-is and offers to
+// open `action_url`, so both are written for the person holding the phone.
+app.post('/api/v1/run/:slug', async (c) => {
+  const { appUrl, inference } = c.get('ctx');
+  const a = findAutomation(c.req.param('slug'));
+  if (!a) return c.json({ error: 'This shortcut has been retired. Tap OK to find its replacement.', action_url: `${appUrl}/automations` }, 404);
+  const page = `${appUrl}/automations/${a.slug}`;
+  const user = await bearerUser(c);
+  if (!user) return c.json({ error: 'This shortcut’s key isn’t working. Tap OK to add it again with a fresh key.', action_url: page }, 401);
+  const { body, error } = await readJson(c);
+  if (error) return c.json({ ...error[0], action_url: page }, error[1]);
+  const { status, json } = await inference.runAutomation(user, a, body);
+  if (status === 402) return c.json({ ...json, error: 'You’re out of credit. Tap OK to top up. Most runs cost under a cent.', action_url: `${appUrl}/account#balance` }, 402);
+  if (status !== 200) return c.json({ ...json, error: json.error === 'Model provider rejected the request.' ? 'The AI couldn’t answer that one. Please try again in a moment.' : json.error, action_url: page }, status);
+  return c.json(json);
+});
 app.get('/api/v1/balance', api(async (c, user) => ({ status: 200, json: { balance_usd: (await c.get('ctx').billing.balance(user.id)) / 1e6 } })));
 
 app.use(loadUser);
 
 // Pages
-app.get('/', (c) => c.html(views.landing({ user: c.get('user') })));
+// Starter credit only goes to Google and Apple sign-ins, so only mention it when they are on.
+const starter = (c) => (Object.keys(c.get('ctx').oauth).length ? c.get('ctx').starterMicros : 0);
+
+app.get('/', (c) => c.html(views.landing({ user: c.get('user'), starterMicros: starter(c) })));
 app.get('/automations', (c) => {
   const q = c.req.query('category');
   const category = CATEGORIES.includes(q) ? q : '';
@@ -132,16 +163,27 @@ app.get('/automations', (c) => {
 app.get('/automations/:slug', (c) => {
   const a = findAutomation(c.req.param('slug'));
   if (!a) return c.html(views.notFound({ user: c.get('user') }), 404);
-  return c.html(views.automationDetail({ user: c.get('user'), a, apiUrl: c.get('ctx').apiUrl }));
+  return c.html(views.automationDetail({ user: c.get('user'), a, apiUrl: c.get('ctx').apiUrl, starterMicros: starter(c) }));
+});
+// Creates a key for this shortcut and hands it over with the signed file. Keys are only stored
+// hashed, so each visit makes a new one; the page is never cached.
+app.get('/automations/:slug/install', requireUser, async (c) => {
+  const a = findAutomation(c.req.param('slug'));
+  if (!a) return c.html(views.notFound({ user: c.get('user') }), 404);
+  const { auth, billing, appUrl } = c.get('ctx');
+  const user = c.get('user');
+  const [key, balance] = await Promise.all([auth.createApiKey(user.id, a.name), billing.balance(user.id)]);
+  c.header('Cache-Control', 'no-store');
+  return c.html(views.install({ user, a, key, balance, fileUrl: `${appUrl}/shortcuts/${a.slug}.shortcut` }));
 });
 app.get('/pricing', (c) => c.html(views.pricing({ user: c.get('user') })));
 
 // Auth
 for (const mode of ['login', 'signup']) {
-  app.get(`/${mode}`, (c) => (c.get('user') ? c.redirect('/account', 302) : c.html(views.authPage({ mode, next: c.req.query('next'), providers: providerList(c) }))));
+  app.get(`/${mode}`, (c) => (c.get('user') ? c.redirect(safeNext(c.req.query('next')), 302) : c.html(views.authPage({ mode, next: c.req.query('next'), providers: providerList(c), starterMicros: starter(c) }))));
   app.post(`/${mode}`, async (c) => {
     const body = (await readForm(c)) ?? {};
-    const render = (status, error) => c.html(views.authPage({ mode, error, email: body.email, next: body.next, providers: providerList(c) }), status);
+    const render = (status, error) => c.html(views.authPage({ mode, error, email: body.email, next: body.next, providers: providerList(c), starterMicros: starter(c) }), status);
     if (!authLimit(c.req.header('cf-connecting-ip') || 'local')) return render(429, 'Too many attempts. Wait a few minutes and try again.');
     const creds = validateCredentials(body.email, body.password);
     if (creds.error) return render(400, mode === 'login' ? 'That email and password do not match.' : creds.error);

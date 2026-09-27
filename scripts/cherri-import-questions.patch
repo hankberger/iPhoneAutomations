@@ -1,0 +1,59 @@
+diff --git a/action.go b/action.go
+index 1b2449b..292bc9c 100644
+--- a/action.go
++++ b/action.go
+@@ -171,6 +171,17 @@ func makeAction(arguments []actionArgument, reference *WFActionReference) {
+ 	// Determine identifier
+ 	var ident = getFullActionIdentifier()
+ 	// Determine parameters
++	// Point import questions at this action's final position. The parser's action count
++	// misses the extra actions emitted for variables and control flow, so it is only known here.
++	for i, argument := range arguments {
++		if argument.valueType != Question {
++			continue
++		}
++		if q, found := questions[fmt.Sprint(argument.value)]; found {
++			q.actionIndex = len(shortcut.WFWorkflowActions)
++			arguments[i].value = ""
++		}
++	}
+ 	var params = getActionParameters(arguments)
+ 	// Additionally add the output name and UUID of this action if provided
+ 	addAction(ident, attachReferenceToParams(params, reference))
+@@ -559,8 +570,6 @@ func questionArg(param *parameterDefinition, argument *actionArgument) {
+ 	var identifier = argument.value.(string)
+ 	if question, found := questions[identifier]; found {
+ 		question.parameter = param.key
+-		question.actionIndex = actionIndex
+-		argument.value = ""
+ 	}
+ }
+ 
+diff --git a/shortcutgen.go b/shortcutgen.go
+index 1cf4c63..5628301 100644
+--- a/shortcutgen.go
++++ b/shortcutgen.go
+@@ -43,12 +43,11 @@ func generateShortcut() {
+ 		func() {
+ 			shortcut.WFWorkflowOutputContentItemClasses = generateOutputContentItems()
+ 		},
+-		func() {
+-			shortcut.WFWorkflowImportQuestions = generateImportQuestions()
+-		},
+ 	)
+ 
+ 	generateActions()
++	// Questions record the index of the action they answer while actions are generated.
++	shortcut.WFWorkflowImportQuestions = generateImportQuestions()
+ 
+ 	if args.Using("debug") {
+ 		printShortcutGenDebug()
+@@ -1175,7 +1174,7 @@ func makeRepeatEachAction(t *token) {
+ type WFQuestion struct {
+ 	ParameterKey string `plist:",omitempty"`
+ 	Category     string `plist:",omitempty"`
+-	ActionIndex  int    `plist:",omitempty"`
++	ActionIndex  int
+ 	Text         string `plist:",omitempty"`
+ 	DefaultValue any    `plist:",omitempty"`
+ }

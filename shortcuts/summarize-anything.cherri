@@ -1,0 +1,9 @@
+#define color orange
+#define glyph documentFilled
+#define from sharesheet
+#define inputs text, url, article, richtext, webpage
+#define noinput getclipboard
+
+const input = getText(ShortcutInput)
+// @call
+quicklook(result)
