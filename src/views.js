@@ -1,5 +1,5 @@
 import { AUTOMATIONS, CATEGORIES, findAutomation } from './catalog.js';
-import { MODELS, AUDIO_MODELS, retailPrice } from './inference.js';
+import { MODELS, AUDIO_MODELS, IMAGE_MODELS, JEV, retailPrice } from './inference.js';
 import { TOPUP_AMOUNTS, formatUsd, MICROS } from './billing.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -23,6 +23,11 @@ const ICONS = {
   wave: '<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/>',
   apple: '<path d="M12 7c-1.5-1-5-1.5-6.5 1.5S5 16 7 19c1.2 1.8 2.8 2 5 1 2.2 1 3.8.8 5-1 2-3 2.5-7.5 1-10.5S13.5 6 12 7z"/><path d="M12 7c0-2 1-3.5 3-4"/>',
   shield: '<path d="M12 3 5 6v5c0 5 3 8.5 7 10 4-1.5 7-5 7-10V6z"/><path d="M12 8v4M12 15.5v.5"/>',
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
 };
 export const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
@@ -152,13 +157,21 @@ export function catalog({ user, category }) {
   });
 }
 
+function modelLabel(a) {
+  if (a.makesImage) return IMAGE_MODELS[a.model].label;
+  if (a.picksChoice) return JEV.label;
+  const whisper = Object.values(AUDIO_MODELS)[0].label.replace(/ Large.*/, '');
+  if (a.audio && !a.prompt) return whisper;
+  return `${a.audio ? `${whisper} + ` : ''}${MODELS[a.model].label}${a.imageModel ? ` or ${MODELS[a.imageModel].label} for photos` : ''}`;
+}
+
 export function automationDetail({ user, a, apiUrl, starterMicros }) {
   const inside = a.inside.map((s, i) => `
     <li><span class="step-n">${i + 1}</span><div><strong>${e(s.action)}</strong>${s.detail ? `<p>${e(s.detail)}</p>` : ''}</div></li>`).join('');
   const runUrl = apiUrl.replace('/generate', `/run/${a.slug}`);
   const example = a.audio
     ? `curl ${runUrl} \\\n  -H "Authorization: Bearer YOUR_KEY" \\\n  --data-binary @meeting.m4a`
-    : `curl ${runUrl} \\\n  -H "Authorization: Bearer YOUR_KEY" \\\n  -d '{"input": "…"${a.choices ? `, "choice": "${a.choices[0]}"` : ''}${a.image ? ', "image": "<base64 JPEG>"' : ''}}'`;
+    : `curl ${runUrl} \\\n  -H "Authorization: Bearer YOUR_KEY" \\\n  -d '{"input": "…"${a.choices ? `, "choice": "${a.choices[0]}"` : ''}${a.image ? ', "image": "<base64 JPEG>"' : ''}${a.block && !a.makesImage ? ', "instructions": "…"' : ''}}'`;
   return layout({
     title: a.name,
     user,
@@ -177,7 +190,7 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
       </div>
       <dl class="facts">
         <div><dt>Runs from</dt><dd>${e(a.trigger)}</dd></div>
-        <div><dt>Model</dt><dd>${a.audio ? `${e(Object.values(AUDIO_MODELS)[0].label.replace(/ Large.*/, ''))} + ` : ''}${e(MODELS[a.model].label)}</dd></div>
+        <div><dt>Model</dt><dd>${e(modelLabel(a))}</dd></div>
         <div><dt>Typical cost</dt><dd>~${cents(a.typicalCost)} ${a.audio ? `per ${a.typicalMinutes}-minute recording` : 'per run'}</dd></div>
       </dl>
     </div>

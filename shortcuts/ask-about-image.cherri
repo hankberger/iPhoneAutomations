@@ -1,0 +1,26 @@
+#define color teal
+#define glyph photoStack
+
+// Called from another shortcut with one item, or with a List: what to work on first,
+// your instructions last.
+@content = ShortcutInput
+@instructions = ""
+const items = count(ShortcutInput)
+if items > 1 {
+    @content = getFirstItem(ShortcutInput)
+    const last = getLastItem(ShortcutInput)
+    @instructions = getText(last)
+}
+if !ShortcutInput {
+    @content = selectPhotos()
+}
+// Shrunk and sent as JPEG so a run costs about the same every time.
+const small = resizeImageByLongestEdge(@content, "1024")
+const jpeg = convertToJPEG(small, 0.7, false)
+const image = base64Encode(jpeg)
+const input = "Image"
+// @call
+if !ShortcutInput {
+    quicklook(result)
+}
+output("{result}")

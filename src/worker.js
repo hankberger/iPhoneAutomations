@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createAuth, validateCredentials, rateLimiter, safeEqual, SESSION_COOKIE } from './auth.js';
 import { createBilling } from './billing.js';
-import { createInference, restAi, MAX_AUDIO_BYTES } from './inference.js';
+import { createInference, restAi, aiGateway, MAX_AUDIO_BYTES } from './inference.js';
 import { oauthProviders, startFlow, finishFlow } from './oauth.js';
 import { findAutomation, CATEGORIES } from './catalog.js';
 import { MICROS } from './billing.js';
@@ -46,6 +46,10 @@ app.use(async (c, next) => {
     appUrl, auth, billing,
     inference: createInference(billing, {
       ai: c.env.AI ?? (c.env.CLOUDFLARE_API_TOKEN ? restAi(c.env.CLOUDFLARE_ACCOUNT_ID, c.env.CLOUDFLARE_API_TOKEN) : null),
+      // GATEWAY lets tests swap in a fake. OPENAI_API_KEY is only needed until the key is stored in AI Gateway.
+      gateway: c.env.GATEWAY ?? ((c.env.AI || c.env.CLOUDFLARE_API_TOKEN)
+        ? aiGateway({ binding: c.env.AI, accountId: c.env.CLOUDFLARE_ACCOUNT_ID, apiToken: c.env.CLOUDFLARE_API_TOKEN, gatewayId: c.env.AI_GATEWAY_ID, openaiKey: c.env.OPENAI_API_KEY })
+        : null),
     }),
     oauth: oauthProviders(c.env),
     starterMicros,
@@ -147,7 +151,7 @@ app.post('/api/v1/run/:slug', async (c) => {
   } else {
     const { body, error } = await readJson(c);
     if (error) return c.json({ ...error[0], action_url: page }, error[1]);
-    result = await inference.runAutomation(user, a, body);
+    result = await (a.makesImage ? inference.makeImage(user, a, body) : a.picksChoice ? inference.pickChoice(user, a, body) : inference.runAutomation(user, a, body));
   }
   const { status, json } = result;
   if (status === 402) return c.json({ ...json, error: 'You’re out of credit. Tap OK to top up. Most runs cost under a cent.', action_url: `${appUrl}/account#balance` }, 402);
