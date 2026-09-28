@@ -24,8 +24,9 @@ async function boot() {
   const db = memoryD1();
   const ai = fakeAi();
   const images = { calls: [], run: async (input) => (images.calls.push(input), { image: '/9j/picture', usage: { input_tokens: 14, output_tokens: 196 } }) };
-  ai.images = images;
-  const env = { DB: db, AI: ai, IMAGES: images, APP_URL: 'http://localhost' };
+  const router = { calls: [], response: 'Urgent', run: async (model, input) => (router.calls.push({ model, input }), { response: router.response, usage: { prompt_tokens: 80, completion_tokens: 2 }, cost: 0.0004 }) };
+  Object.assign(ai, { images, router });
+  const env = { DB: db, AI: ai, IMAGES: images, ROUTER: router, APP_URL: 'http://localhost' };
   let cookie = '';
   const req = async (path, opts = {}) => {
     const res = await app.fetch(new Request(`http://localhost${path}`, { redirect: 'manual', ...opts, headers: { cookie, ...opts.headers } }), env);
@@ -260,17 +261,21 @@ test('building blocks take the person’s own instructions', async () => {
   assert.equal(res.status, 400);
   assert.match((await res.json()).error, /Say which details/);
 
-  // Pick a Category: always one of the given choices, written as given.
+  // Pick a Category: TypeSafe Jev through OpenRouter, charged the cost it reports x 1.5,
+  // and always one of the given choices, written as given.
+  let before = await billing.balance(1);
   for (const [answer, picked] of [['Needs reply', 'Needs reply'], ['"urgent".', 'Urgent'], ['I would say this is FYI', 'FYI'], ['No idea', 'Urgent']]) {
-    ai.response = answer;
+    ai.router.response = answer;
     res = await run('pick-a-category', { input: 'Can you send the deck?', instructions: 'Urgent, Needs reply, FYI' });
     assert.equal((await res.json()).text, picked, answer);
   }
+  assert.equal(ai.router.calls.at(-1).model, 'typesafe/jev-router');
+  assert.equal(before - await billing.balance(1), 4 * 600);
   assert.equal((await run('pick-a-category', { input: 'x' })).status, 400);
 
   // Make an Image: GPT Image 2, charged for the tokens OpenAI reports
   // (14 x $5/M + 196 x $30/M, x 1.5 = $0.008925).
-  let before = await billing.balance(1);
+  before = await billing.balance(1);
   res = await run('make-an-image', { input: 'A fox in the snow', instructions: 'watercolor' });
   assert.equal(res.status, 200);
   assert.equal((await res.json()).text, '/9j/picture');

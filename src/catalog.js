@@ -92,7 +92,7 @@ const BLOCKS = [
     tagline: 'Give it text and a list of choices; it answers with exactly one, ready for an If.',
     trigger: 'Run Shortcut',
     runTip: `${USE} Example: a List of an email and "Urgent, Needs reply, FYI", then If Shortcut Result is Urgent.`,
-    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    model: 'typesafe/jev-router',
     typicalTokens: [500, 10],
     needsInstructions: 'Give it the choices, like "Work, Personal, Errands", as the last item of the List you pass in.',
     prompt: 'Which one of these categories fits the input best: {{instructions}}? Reply with only that category, written exactly as given.',
