@@ -23,9 +23,13 @@ function fakeAi() {
 async function boot() {
   const db = memoryD1();
   const ai = fakeAi();
-  const images = { calls: [], run: async (input) => (images.calls.push(input), { image: '/9j/picture', usage: { input_tokens: 14, output_tokens: 196 } }) };
-  ai.images = images;
-  const env = { DB: db, AI: ai, IMAGES: images, APP_URL: 'http://localhost' };
+  const gateway = {
+    calls: [], response: 'Urgent',
+    run: async (model, input) => (gateway.calls.push({ model, input }), { response: gateway.response, usage: { prompt_tokens: 1000, completion_tokens: 20 } }),
+    image: async (input) => (gateway.calls.push(input), { image: '/9j/picture', usage: { input_tokens: 14, output_tokens: 196 } }),
+  };
+  ai.gateway = gateway;
+  const env = { DB: db, AI: ai, GATEWAY: gateway, APP_URL: 'http://localhost' };
   let cookie = '';
   const req = async (path, opts = {}) => {
     const res = await app.fetch(new Request(`http://localhost${path}`, { redirect: 'manual', ...opts, headers: { cookie, ...opts.headers } }), env);
@@ -260,21 +264,25 @@ test('building blocks take the person’s own instructions', async () => {
   assert.equal(res.status, 400);
   assert.match((await res.json()).error, /Say which details/);
 
-  // Pick a Category: always one of the given choices, written as given.
+  // Pick a Category: GPT-6 Luna through AI Gateway, billed by tokens
+  // (1000 x $0.105/M + 20 x $0.525/M, x 1.5 = 174 micro-dollars, rounded up), and always one of the choices.
+  let before = await billing.balance(1);
   for (const [answer, picked] of [['Needs reply', 'Needs reply'], ['"urgent".', 'Urgent'], ['I would say this is FYI', 'FYI'], ['No idea', 'Urgent']]) {
-    ai.response = answer;
+    ai.gateway.response = answer;
     res = await run('pick-a-category', { input: 'Can you send the deck?', instructions: 'Urgent, Needs reply, FYI' });
     assert.equal((await res.json()).text, picked, answer);
   }
+  assert.equal(ai.gateway.calls.at(-1).model, 'openai/gpt-6-luna');
+  assert.equal(before - await billing.balance(1), 4 * 174);
   assert.equal((await run('pick-a-category', { input: 'x' })).status, 400);
 
   // Make an Image: GPT Image 2, charged for the tokens OpenAI reports
   // (14 x $5/M + 196 x $30/M, x 1.5 = $0.008925).
-  let before = await billing.balance(1);
+  before = await billing.balance(1);
   res = await run('make-an-image', { input: 'A fox in the snow', instructions: 'watercolor' });
   assert.equal(res.status, 200);
   assert.equal((await res.json()).text, '/9j/picture');
-  assert.deepEqual(ai.images.calls.at(-1), { model: 'gpt-image-2', prompt: 'A fox in the snow. watercolor', size: '1024x1024', quality: 'low' });
+  assert.deepEqual(ai.gateway.calls.at(-1), { model: 'gpt-image-2', prompt: 'A fox in the snow. watercolor', size: '1024x1024', quality: 'low' });
   assert.equal(before - await billing.balance(1), 8925);
   assert.equal((await run('make-an-image', { input: ' ' })).status, 400);
 

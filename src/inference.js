@@ -6,6 +6,8 @@ export const MODELS = {
   '@cf/meta/llama-3.3-70b-instruct-fp8-fast': { label: 'Llama 3.3 70B', input: 0.293, output: 2.253 },
   '@cf/mistralai/mistral-small-3.1-24b-instruct': { label: 'Mistral Small 3.1', input: 0.351, output: 0.555, vision: true },
   '@cf/meta/llama-3.1-8b-instruct-fp8-fast': { label: 'Llama 3.1 8B', input: 0.045, output: 0.384 },
+  // Through AI Gateway, not Workers AI: OpenAI's price plus the 5% Unified Billing fee on credits.
+  'openai/gpt-6-luna': { label: 'GPT-6 Luna', input: 0.105, output: 0.525, gateway: true },
 };
 export const DEFAULT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const DEFAULT_MAX_TOKENS = 1024;
@@ -94,21 +96,37 @@ export const imageMicros = (model, inputTokens, outputTokens) => {
   return Math.ceil((inputTokens * m.textInput + outputTokens * m.imageOutput) * markup());
 };
 
-// OpenAI's image API, with the same run(input) -> { image, usage } shape the tests fake.
-export function openaiImages(apiKey, fetchImpl = globalThis.fetch) {
-  return {
-    async run(input) {
-      const res = await fetchImpl('https://api.openai.com/v1/images/generations', {
+// OpenAI through Cloudflare AI Gateway. In the Worker it goes through the AI binding's gateway
+// (Cloudflare authenticates it); locally, over HTTPS with a Cloudflare API token. Chat models are
+// paid with Cloudflare Unified Billing credits. Image generation isn't covered by Unified Billing,
+// so it needs an OpenAI key stored in the gateway (bring your own key), or OPENAI_API_KEY here.
+export function aiGateway({ binding, accountId, apiToken, gatewayId = 'default', openaiKey, fetchImpl = globalThis.fetch } = {}) {
+  async function call(endpoint, body) {
+    const headers = { 'Content-Type': 'application/json', ...(openaiKey ? { Authorization: `Bearer ${openaiKey}` } : {}) };
+    const res = binding?.gateway
+      ? await binding.gateway(gatewayId).run({ provider: 'openai', endpoint, headers, query: body })
+      : await fetchImpl(`https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/openai/${endpoint}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...input, output_format: 'jpeg', n: 1 }),
+        headers: { ...headers, 'cf-aig-authorization': `Bearer ${apiToken}` },
+        body: JSON.stringify(body),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error?.message ?? `OpenAI returned ${res.status}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) throw new Error(data.error?.message ?? data.errors?.[0]?.message ?? `AI Gateway returned ${res.status}`);
+    return data;
+  }
+  return {
+    // Same run(model, input) -> { response, usage } shape as the Workers AI binding.
+    async run(model, input) {
+      const data = await call('chat/completions', { model: model.replace(/^openai\//, ''), messages: input.messages, max_completion_tokens: input.max_tokens });
+      return { response: data.choices?.[0]?.message?.content ?? '', usage: data.usage };
+    },
+    async image(input) {
+      const data = await call('images/generations', { ...input, output_format: 'jpeg', n: 1 });
       return { image: data.data?.[0]?.b64_json, usage: data.usage };
     },
   };
 }
+
 
 // Pick a Category answers with one of the listed choices, whatever the model wrote around it.
 export function matchChoice(answer, choices) {
@@ -145,12 +163,12 @@ export function restAi(accountId, apiToken, fetchImpl = globalThis.fetch) {
 
 // `ai` is the Workers AI binding (env.AI). Calls bill to this Cloudflare account and
 // no API token is involved.
-export function createInference(billing, { ai, images } = {}) {
+export function createInference(billing, { ai, gateway } = {}) {
   const enabled = Boolean(ai);
 
   // Reserves the worst case, calls Workers AI, then charges actual usage and refunds the rest.
   async function meteredRun(user, model, payload) {
-    if (!enabled) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
+    if (MODELS[model]?.gateway ? !gateway : !enabled) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
     if (!MODELS[model]) return { status: 400, json: { error: `Unsupported model. Use one of: ${Object.keys(MODELS).join(', ')}` } };
     if (payload.stream) return { status: 400, json: { error: 'Streaming is not supported yet. Remove "stream": true.' } };
 
@@ -172,7 +190,7 @@ export function createInference(billing, { ai, images } = {}) {
 
     let result;
     try {
-      result = (await ai.run(model, input)) ?? {};
+      result = (await (MODELS[model].gateway ? gateway : ai).run(model, input)) ?? {};
     } catch (err) {
       await billing.settle(user.id, reserved, 0, {});
       const message = String(err?.message ?? err);
@@ -255,7 +273,7 @@ export function createInference(billing, { ai, images } = {}) {
   // Make an Image: reserves for the largest picture the model makes at this size and quality,
   // then charges the tokens OpenAI reports. The JPEG comes back base64 in `text`.
   async function makeImage(user, automation, body) {
-    if (!images) return { status: 503, json: { error: 'Image generation is not configured on this server.' } };
+    if (!gateway) return { status: 503, json: { error: 'Image generation is not configured on this server.' } };
     const prompt = [body.input, body.instructions].filter((v) => typeof v === 'string' && v.trim()).join('. ').trim();
     if (!prompt) return { status: 400, json: { error: 'Describe the picture you want, then run the shortcut again.' } };
     if (prompt.length > MAX_IMAGE_PROMPT) return { status: 413, json: { error: 'That description is too long. Keep it under 2,000 characters.' } };
@@ -268,7 +286,7 @@ export function createInference(billing, { ai, images } = {}) {
     }
     let result;
     try {
-      result = (await images.run({ model, prompt, size: m.size, quality: m.quality })) ?? {};
+      result = (await gateway.image({ model, prompt, size: m.size, quality: m.quality })) ?? {};
     } catch (err) {
       await billing.settle(user.id, reserved, 0, {});
       const message = String(err?.message ?? err);
@@ -331,6 +349,7 @@ export function createInference(billing, { ai, images } = {}) {
 
   // Pass-through that mirrors Cloudflare's /ai/run/{model} REST request and response shape.
   async function run(user, model, body) {
+    if (!MODELS[model] || MODELS[model].gateway) return { status: 400, json: { success: false, error: `Unsupported model. Use one of: ${Object.keys(MODELS).filter((m) => !MODELS[m].gateway).join(', ')}` } };
     const out = await meteredRun(user, model, body ?? {});
     if (out.status !== 200) return { status: out.status, json: { success: false, ...out.json } };
     return { status: 200, json: { success: true, result: out.result, billing: out.billing } };
