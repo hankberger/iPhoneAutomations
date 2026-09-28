@@ -4,6 +4,8 @@ import { costMicros, audioMicros } from './inference.js';
 // (npm run shortcuts). The shortcut sends its input to /api/v1/run/<slug>; the prompt
 // and model live here, so they can change without anyone reinstalling.
 // `inside` lists the shortcut's actions in plain words, for people who want to check.
+// `icloudUrl` (optional) is the shortcut's iCloud share link. iOS only imports in one tap from
+// those; without one, the install page downloads the signed file instead.
 const CALL = { action: 'Ask Advanced Automations', detail: 'Sends the text to our API with your key. Nothing else leaves your phone.' };
 
 export const CATEGORIES = ['Writing', 'Productivity', 'Capture', 'Everyday'];

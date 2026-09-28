@@ -182,7 +182,22 @@ app.get('/automations/:slug/install', requireUser, async (c) => {
   const user = c.get('user');
   const [key, balance] = await Promise.all([auth.createApiKey(user.id, a.name), billing.balance(user.id)]);
   c.header('Cache-Control', 'no-store');
-  return c.html(views.install({ user, a, key, balance, fileUrl: `${appUrl}/shortcuts/${a.slug}.shortcut` }));
+  return c.html(views.install({ user, a, key, balance, fileUrl: `${appUrl}/download/${a.slug}` }));
+});
+// The signed file, as an attachment named after the shortcut: iOS names an imported shortcut
+// after its file, so this makes it arrive as "Draft a Reply" rather than "reply-drafter".
+app.get('/download/:slug', async (c) => {
+  const a = findAutomation(c.req.param('slug'));
+  if (!a || !c.env.ASSETS) return c.html(views.notFound({ user: c.get('user') }), 404);
+  const file = await c.env.ASSETS.fetch(new URL(`/shortcuts/${a.slug}.shortcut`, c.req.url));
+  if (!file.ok) return c.html(views.notFound({ user: c.get('user') }), 404);
+  return new Response(file.body, {
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${a.slug}.shortcut"; filename*=UTF-8''${encodeURIComponent(`${a.name}.shortcut`)}`,
+      'Cache-Control': 'public, max-age=300',
+    },
+  });
 });
 app.get('/pricing', (c) => c.html(views.pricing({ user: c.get('user') })));
 

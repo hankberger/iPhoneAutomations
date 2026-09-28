@@ -18,7 +18,7 @@ add?.addEventListener('click', async (event) => {
     getSelection().removeAllRanges();
     getSelection().addRange(range);
   }
-  add.querySelector('span').textContent = copied ? 'Key copied. Opening Shortcuts…' : 'Copy the key above, then tap again';
+  add.querySelector('span').textContent = copied ? add.dataset.going : 'Copy the key above, then tap again';
   if (!copied) return;
   if (!isIos) {
     status.textContent = 'Key copied. Shortcuts only installs on iPhone and iPad, so open this page there.';

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { memoryD1 } from './d1.js';
 import app from '../src/worker.js';
 import { createBilling } from '../src/billing.js';
+import { findAutomation } from '../src/catalog.js';
 
 // Fake Workers AI binding: records calls and reports fixed usage so billing is predictable.
 function fakeAi() {
@@ -215,4 +216,28 @@ test('photo, JSON and audio shortcuts', async () => {
   assert.equal(before - await billing.balance(1), 1530 + 1116);
   res = await req('/api/v1/run/meeting-notes', { method: 'POST', headers: auth, body: new Uint8Array(0) });
   assert.equal(res.status, 400);
+});
+
+test('install page downloads the signed file under the shortcut’s name, or opens its iCloud link', async () => {
+  const assets = { fetch: async (url) => (String(url).endsWith('/shortcuts/reply-drafter.shortcut') ? new Response('AEA1…') : new Response('', { status: 404 })) };
+  const env = { DB: memoryD1(), AI: fakeAi(), ASSETS: assets, APP_URL: 'http://localhost' };
+  const res = await app.fetch(new Request('http://localhost/download/reply-drafter'), env);
+  assert.equal(res.status, 200);
+  assert.equal(await res.text(), 'AEA1…');
+  assert.match(res.headers.get('content-disposition'), /^attachment; filename="reply-drafter\.shortcut"; filename\*=UTF-8''Draft%20a%20Reply\.shortcut$/);
+  assert.equal((await app.fetch(new Request('http://localhost/download/nope'), env)).status, 404);
+
+  const { req, form } = await boot();
+  await form('/signup', { email: 'd@b.co', password: 'correct horse battery' });
+  let html = await (await req('/automations/reply-drafter/install')).text();
+  assert.match(html, /id="add" href="http:\/\/localhost\/download\/reply-drafter"/);
+  assert.doesNotMatch(html, /import-shortcut/, 'iOS rejects import-shortcut for anything but iCloud links');
+  const a = findAutomation('reply-drafter');
+  a.icloudUrl = 'https://www.icloud.com/shortcuts/abc123';
+  try {
+    html = await (await req('/automations/reply-drafter/install')).text();
+    assert.match(html, /id="add" href="https:\/\/www\.icloud\.com\/shortcuts\/abc123"/);
+  } finally {
+    delete a.icloudUrl;
+  }
 });

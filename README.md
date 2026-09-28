@@ -104,6 +104,8 @@ git apply ../iPhoneAutomations/scripts/cherri-import-questions.patch ../iPhoneAu
 go build -o ~/bin/cherri .
 ```
 
+iOS only imports straight into Shortcuts from an iCloud share link: `shortcuts://import-shortcut?url=` rejects every other URL. So the install page downloads the signed file from `/download/<slug>` (named after the shortcut) and Safari hands it to Shortcuts. For one-tap installs, add each shortcut on an iPhone, tap Share, then Copy iCloud Link, and put the link in the automation's `icloudUrl` in `src/catalog.js`. Make a new link whenever the .cherri file changes.
+
 Installed shortcuts call `POST /api/v1/run/<slug>` with `{ "input": "...", "choice": "...", "image": "<base64 JPEG>" }` (choice and image only where the automation uses them). Audio automations such as Summarize My Meeting Notes post the recording itself as the body instead; it is transcribed with Whisper, billed per minute, and the notes come back with the transcript underneath. The prompt and model come from the catalog, so they can change without anyone reinstalling. Errors return `{ error, action_url }`: the shortcut shows the message and offers to open the link (top up, or add the shortcut again with a fresh key). Shortcuts point at `https://iphoneadvanced.com` unless built with `SHORTCUT_API_BASE`.
 
 ## Mockups with GPT-Image-2
