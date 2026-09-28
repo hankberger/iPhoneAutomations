@@ -14,6 +14,7 @@ function fakeAi() {
     if (model === '@cf/meta/llama-3.1-8b-instruct-fp8-fast' && input.messages?.[0]?.content === 'fail') {
       throw new Error('AiError: 5006: bad input');
     }
+    if (model === 'typesafe/jev') return { result: { model: 'jev-1.13.0', answers: { category: { type: 'choice', choice: fake.jevChoice, confidence: 0.8 } }, usage: { input_tokens: 1000, output_tokens: 40 } } };
     if (model === '@cf/openai/whisper-large-v3-turbo') return { text: ' Let’s ship Friday. ', transcription_info: { duration: 120 } };
     return { response: fake.response, usage: { prompt_tokens: 1000, completion_tokens: 200, total_tokens: 1200 } };
   };
@@ -24,8 +25,7 @@ async function boot() {
   const db = memoryD1();
   const ai = fakeAi();
   const gateway = {
-    calls: [], response: 'Urgent',
-    run: async (model, input) => (gateway.calls.push({ model, input }), { response: gateway.response, usage: { prompt_tokens: 1000, completion_tokens: 20 } }),
+    calls: [],
     image: async (input) => (gateway.calls.push(input), { image: '/9j/picture', usage: { input_tokens: 14, output_tokens: 196 } }),
   };
   ai.gateway = gateway;
@@ -264,16 +264,20 @@ test('building blocks take the person’s own instructions', async () => {
   assert.equal(res.status, 400);
   assert.match((await res.json()).error, /Say which details/);
 
-  // Pick a Category: GPT-6 Luna through AI Gateway, billed by tokens
-  // (1000 x $0.105/M + 20 x $0.525/M, x 1.5 = 174 micro-dollars, rounded up), and always one of the choices.
+  // Pick a Category: one TypeSafe Jev choice question, billed per input token
+  // (1000 x $0.042/M x 1.5 = 63 micro-dollars); answers only with a listed choice.
   let before = await billing.balance(1);
-  for (const [answer, picked] of [['Needs reply', 'Needs reply'], ['"urgent".', 'Urgent'], ['I would say this is FYI', 'FYI'], ['No idea', 'Urgent']]) {
-    ai.gateway.response = answer;
-    res = await run('pick-a-category', { input: 'Can you send the deck?', instructions: 'Urgent, Needs reply, FYI' });
-    assert.equal((await res.json()).text, picked, answer);
-  }
-  assert.equal(ai.gateway.calls.at(-1).model, 'openai/gpt-6-luna');
-  assert.equal(before - await billing.balance(1), 4 * 174);
+  ai.jevChoice = 'Urgent';
+  res = await run('pick-a-category', { input: 'Can you send the deck?', instructions: 'Urgent: needs action today, or tomorrow\nNeeds reply; FYI' });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).text, 'Urgent');
+  assert.deepEqual(ai.calls.at(-1), { model: 'typesafe/jev', input: { state: 'Can you send the deck?', questions: { category: { type: 'choice', instructions: 'Which one of these categories fits best?', criteria: { Urgent: 'needs action today, or tomorrow', 'Needs reply': 'Needs reply', FYI: 'FYI' } } } } });
+  assert.equal(before - await billing.balance(1), 63);
+  ai.jevChoice = 'Something else';
+  before = await billing.balance(1);
+  assert.equal((await run('pick-a-category', { input: 'x', instructions: 'A, B' })).status, 502);
+  assert.equal(before - await billing.balance(1), 0, 'not charged for an unusable answer');
+  assert.equal((await run('pick-a-category', { input: 'x', instructions: 'Only one' })).status, 400);
   assert.equal((await run('pick-a-category', { input: 'x' })).status, 400);
 
   // Make an Image: GPT Image 2, charged for the tokens OpenAI reports

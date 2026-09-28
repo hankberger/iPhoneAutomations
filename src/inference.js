@@ -6,8 +6,6 @@ export const MODELS = {
   '@cf/meta/llama-3.3-70b-instruct-fp8-fast': { label: 'Llama 3.3 70B', input: 0.293, output: 2.253 },
   '@cf/mistralai/mistral-small-3.1-24b-instruct': { label: 'Mistral Small 3.1', input: 0.351, output: 0.555, vision: true },
   '@cf/meta/llama-3.1-8b-instruct-fp8-fast': { label: 'Llama 3.1 8B', input: 0.045, output: 0.384 },
-  // Through AI Gateway, not Workers AI: OpenAI's price plus the 5% Unified Billing fee on credits.
-  'openai/gpt-6-luna': { label: 'GPT-6 Luna', input: 0.105, output: 0.525, gateway: true },
 };
 export const DEFAULT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const DEFAULT_MAX_TOKENS = 1024;
@@ -96,10 +94,10 @@ export const imageMicros = (model, inputTokens, outputTokens) => {
   return Math.ceil((inputTokens * m.textInput + outputTokens * m.imageOutput) * markup());
 };
 
-// OpenAI through Cloudflare AI Gateway. In the Worker it goes through the AI binding's gateway
-// (Cloudflare authenticates it); locally, over HTTPS with a Cloudflare API token. Chat models are
-// paid with Cloudflare Unified Billing credits. Image generation isn't covered by Unified Billing,
-// so it needs an OpenAI key stored in the gateway (bring your own key), or OPENAI_API_KEY here.
+// OpenAI image generation through Cloudflare AI Gateway. In the Worker it goes through the AI
+// binding's gateway (Cloudflare authenticates it); locally, over HTTPS with a Cloudflare API token.
+// Unified Billing doesn't cover image generation, so it needs an OpenAI key stored in the gateway
+// (bring your own key), or OPENAI_API_KEY here.
 export function aiGateway({ binding, accountId, apiToken, gatewayId = 'default', openaiKey, fetchImpl = globalThis.fetch } = {}) {
   async function call(endpoint, body) {
     const headers = { 'Content-Type': 'application/json', ...(openaiKey ? { Authorization: `Bearer ${openaiKey}` } : {}) };
@@ -115,11 +113,6 @@ export function aiGateway({ binding, accountId, apiToken, gatewayId = 'default',
     return data;
   }
   return {
-    // Same run(model, input) -> { response, usage } shape as the Workers AI binding.
-    async run(model, input) {
-      const data = await call('chat/completions', { model: model.replace(/^openai\//, ''), messages: input.messages, max_completion_tokens: input.max_tokens });
-      return { response: data.choices?.[0]?.message?.content ?? '', usage: data.usage };
-    },
     async image(input) {
       const data = await call('images/generations', { ...input, output_format: 'jpeg', n: 1 });
       return { image: data.data?.[0]?.b64_json, usage: data.usage };
@@ -128,14 +121,22 @@ export function aiGateway({ binding, accountId, apiToken, gatewayId = 'default',
 }
 
 
-// Pick a Category answers with one of the listed choices, whatever the model wrote around it.
-export function matchChoice(answer, choices) {
-  const said = answer.trim().replace(/^["'“]|["'”.]$/g, '').toLowerCase();
-  return choices.find((c) => c.toLowerCase() === said)
-    ?? choices.find((c) => said.includes(c.toLowerCase()))
-    ?? choices[0];
+// TypeSafe Jev answers structured questions about a piece of text on Workers AI. Billed per input
+// token only; each call carries a few hundred tokens of overhead on top of the text.
+export const JEV = { model: 'typesafe/jev', label: 'TypeSafe Jev', input: 0.042, overheadTokens: 2000 };
+export const jevMicros = (inputTokens) => Math.max(1, Math.ceil(inputTokens * JEV.input * markup()));
+
+// "Urgent: needs action today, FYI" -> { Urgent: 'needs action today', FYI: 'FYI' }. A choice's
+// description is optional and follows its first colon. Choices are split on new lines or
+// semicolons when there are any, so descriptions can hold commas; otherwise on commas.
+export function parseChoices(text) {
+  const entries = text.split(/[\n;]/.test(text) ? /[\n;]+/ : /,+/).map((c) => c.trim()).filter(Boolean).map((c) => {
+    const at = c.indexOf(':');
+    const name = (at > 0 ? c.slice(0, at) : c).trim();
+    return [name, (at > 0 ? c.slice(at + 1).trim() : '') || name];
+  });
+  return Object.fromEntries(entries);
 }
-export const splitChoices = (text) => text.split(/[\n,;]+/).map((c) => c.trim()).filter(Boolean);
 const MAX_INSTRUCTIONS = 8000;
 
 // Cloudflare error codes that mean the caller should retry later rather than fix the request.
@@ -146,10 +147,12 @@ const RATE_LIMIT_CODES = new Set([3036, 3040]);
 export function restAi(accountId, apiToken, fetchImpl = globalThis.fetch) {
   return {
     async run(model, input) {
-      const res = await fetchImpl(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`, {
+      // Partner models (no @cf/ prefix, like typesafe/jev) take { model, input } at /ai/run.
+      const partner = !model.startsWith('@cf/');
+      const res = await fetchImpl(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run${partner ? '' : `/${model}`}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
+        body: JSON.stringify(partner ? { model, input } : input),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.success === false) {
@@ -168,7 +171,7 @@ export function createInference(billing, { ai, gateway } = {}) {
 
   // Reserves the worst case, calls Workers AI, then charges actual usage and refunds the rest.
   async function meteredRun(user, model, payload) {
-    if (MODELS[model]?.gateway ? !gateway : !enabled) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
+    if (!enabled) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
     if (!MODELS[model]) return { status: 400, json: { error: `Unsupported model. Use one of: ${Object.keys(MODELS).join(', ')}` } };
     if (payload.stream) return { status: 400, json: { error: 'Streaming is not supported yet. Remove "stream": true.' } };
 
@@ -190,7 +193,7 @@ export function createInference(billing, { ai, gateway } = {}) {
 
     let result;
     try {
-      result = (await (MODELS[model].gateway ? gateway : ai).run(model, input)) ?? {};
+      result = (await ai.run(model, input)) ?? {};
     } catch (err) {
       await billing.settle(user.id, reserved, 0, {});
       const message = String(err?.message ?? err);
@@ -262,12 +265,44 @@ export function createInference(billing, { ai, gateway } = {}) {
     const model = image && automation.imageModel ? automation.imageModel : automation.model;
     const out = await generate(user, { prompt, input, image, model, system: automation.system });
     if (out.status !== 200 || !automation.format) return out;
-    if (automation.format === 'choice') return { status: 200, json: { ...out.json, text: matchChoice(out.json.text, splitChoices(instructions)) } };
     // The shortcut feeds the answer straight into Get Dictionary, so hand back
     // exactly that, or a readable error. The run is still charged: the model did the work.
     const clean = FORMATS[automation.format](out.json.text);
     if (!clean) return { status: 422, json: { ...out.json, error: automation.formatError } };
     return { status: 200, json: { ...out.json, text: clean } };
+  }
+
+  // Pick a Category: one Jev choice question. Returns the chosen name exactly as given, with
+  // Jev's confidence alongside for anyone calling the API directly.
+  async function pickChoice(user, automation, body) {
+    if (!enabled) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
+    const input = typeof body.input === 'string' ? body.input.trim() : '';
+    if (!input) return { status: 400, json: { error: 'There was nothing to sort. Pass some text first, then the choices.' } };
+    const criteria = parseChoices(typeof body.instructions === 'string' ? body.instructions : '');
+    const names = Object.keys(criteria);
+    if (names.length < 2) return { status: 400, json: { error: automation.needsInstructions } };
+    if (input.length + JSON.stringify(criteria).length > MAX_BODY_CHARS) return { status: 413, json: { error: 'That text is too long to sort.' } };
+    // A token is never shorter than one character.
+    const reserved = jevMicros(input.length + JSON.stringify(criteria).length + JEV.overheadTokens);
+    if (!(await billing.reserve(user.id, reserved))) {
+      return { status: 402, json: { error: `Not enough credit. This request can cost up to ${formatUsd(reserved, 4)}; top up at /account.`, balance_usd: (await billing.balance(user.id)) / MICROS } };
+    }
+    let out;
+    try {
+      out = (await ai.run(JEV.model, { state: input, questions: { category: { type: 'choice', instructions: 'Which one of these categories fits best?', criteria } } })) ?? {};
+    } catch (err) {
+      await billing.settle(user.id, reserved, 0, {});
+      return { status: 502, json: { error: 'Model provider rejected the request.', errors: [{ message: String(err?.message ?? err) }] } };
+    }
+    // Over REST the answer sits one level down, under `result`.
+    const result = out.answers ? out : out.result ?? {};
+    const answer = result.answers?.category;
+    const choice = names.includes(answer?.choice) ? answer.choice : null;
+    const inputTokens = result.usage?.input_tokens ?? Math.ceil(input.length / 4) + 300;
+    const actual = choice ? Math.min(jevMicros(inputTokens), reserved) : 0;
+    await billing.settle(user.id, reserved, actual, { description: `${JEV.label}: ${inputTokens} in`, model: JEV.model, input_tokens: inputTokens, output_tokens: result.usage?.output_tokens ?? 0 });
+    if (!choice) return { status: 502, json: { error: 'Model provider rejected the request.' } };
+    return { status: 200, json: { text: choice, confidence: answer.confidence, probabilities: answer.probabilities, model: JEV.model, cost_usd: actual / MICROS, balance_usd: (await billing.balance(user.id)) / MICROS } };
   }
 
   // Make an Image: reserves for the largest picture the model makes at this size and quality,
@@ -349,11 +384,10 @@ export function createInference(billing, { ai, gateway } = {}) {
 
   // Pass-through that mirrors Cloudflare's /ai/run/{model} REST request and response shape.
   async function run(user, model, body) {
-    if (!MODELS[model] || MODELS[model].gateway) return { status: 400, json: { success: false, error: `Unsupported model. Use one of: ${Object.keys(MODELS).filter((m) => !MODELS[m].gateway).join(', ')}` } };
     const out = await meteredRun(user, model, body ?? {});
     if (out.status !== 200) return { status: out.status, json: { success: false, ...out.json } };
     return { status: 200, json: { success: true, result: out.result, billing: out.billing } };
   }
 
-  return { enabled, generate, run, runAutomation, runAudioAutomation, makeImage };
+  return { enabled, generate, run, runAutomation, runAudioAutomation, makeImage, pickChoice };
 }

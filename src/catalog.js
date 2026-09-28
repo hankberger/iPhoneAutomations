@@ -1,4 +1,4 @@
-import { costMicros, audioMicros, imageMicros, IMAGE_MODELS } from './inference.js';
+import { costMicros, audioMicros, imageMicros, IMAGE_MODELS, jevMicros } from './inference.js';
 
 // Each automation ships as a signed shortcut built from shortcuts/<slug>.cherri
 // (npm run shortcuts). The shortcut sends its input to /api/v1/run/<slug>; the prompt
@@ -91,12 +91,11 @@ const BLOCKS = [
     name: 'Pick a Category',
     tagline: 'Give it text and a list of choices; it answers with exactly one, ready for an If.',
     trigger: 'Run Shortcut',
-    runTip: `${USE} Example: a List of an email and "Urgent, Needs reply, FYI", then If Shortcut Result is Urgent.`,
-    model: 'openai/gpt-6-luna',
-    typicalTokens: [500, 10],
-    needsInstructions: 'Give it the choices, like "Work, Personal, Errands", as the last item of the List you pass in.',
-    prompt: 'Which one of these categories fits the input best: {{instructions}}? Reply with only that category, written exactly as given.',
-    format: 'choice',
+    runTip: `${USE} Example: a List of an email and "Urgent: needs action today, Needs reply, FYI", then If Shortcut Result is Urgent.`,
+    model: 'typesafe/jev',
+    needsInstructions: 'Give it at least two choices, like "Work, Personal, Errands", as the last item of the List you pass in. Add a description after a colon if it helps, like "Urgent: needs action today".',
+    prompt: '',
+    picksChoice: true,
     inside: [BLOCK_CALL, { action: 'Stop and Output', detail: 'Always one of your choices, written exactly as you gave it.' }],
   },
   {
@@ -350,7 +349,7 @@ export const AUTOMATIONS = [
 // Typical cost in USD at current prices and markup, for display.
 // Audio automations add transcription for their typical recording length.
 for (const a of AUTOMATIONS) {
-  a.typicalCost = (a.makesImage ? imageMicros(a.model, ...IMAGE_MODELS[a.model].typicalTokens) : costMicros(a.model, ...a.typicalTokens) + (a.audio ? audioMicros(a.typicalMinutes) : 0)) / 1e6;
+  a.typicalCost = (a.makesImage ? imageMicros(a.model, ...IMAGE_MODELS[a.model].typicalTokens) : a.picksChoice ? jevMicros(500) : costMicros(a.model, ...a.typicalTokens) + (a.audio ? audioMicros(a.typicalMinutes) : 0)) / 1e6;
 }
 
 export const findAutomation = (slug) => AUTOMATIONS.find((a) => a.slug === slug);

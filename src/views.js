@@ -1,5 +1,5 @@
 import { AUTOMATIONS, CATEGORIES, findAutomation } from './catalog.js';
-import { MODELS, AUDIO_MODELS, IMAGE_MODELS, retailPrice } from './inference.js';
+import { MODELS, AUDIO_MODELS, IMAGE_MODELS, JEV, retailPrice } from './inference.js';
 import { TOPUP_AMOUNTS, formatUsd, MICROS } from './billing.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -159,6 +159,7 @@ export function catalog({ user, category }) {
 
 function modelLabel(a) {
   if (a.makesImage) return IMAGE_MODELS[a.model].label;
+  if (a.picksChoice) return JEV.label;
   const whisper = Object.values(AUDIO_MODELS)[0].label.replace(/ Large.*/, '');
   if (a.audio && !a.prompt) return whisper;
   return `${a.audio ? `${whisper} + ` : ''}${MODELS[a.model].label}${a.imageModel ? ` or ${MODELS[a.imageModel].label} for photos` : ''}`;
