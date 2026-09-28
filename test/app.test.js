@@ -229,15 +229,9 @@ test('install page downloads the signed file under the shortcut’s name, or ope
 
   const { req, form } = await boot();
   await form('/signup', { email: 'd@b.co', password: 'correct horse battery' });
-  let html = await (await req('/automations/reply-drafter/install')).text();
-  assert.match(html, /id="add" href="http:\/\/localhost\/download\/reply-drafter"/);
+  let html = await (await req('/automations/explain-this/install')).text();
+  assert.match(html, /id="add" href="http:\/\/localhost\/download\/explain-this"/);
   assert.doesNotMatch(html, /import-shortcut/, 'iOS rejects import-shortcut for anything but iCloud links');
-  const a = findAutomation('reply-drafter');
-  a.icloudUrl = 'https://www.icloud.com/shortcuts/abc123';
-  try {
-    html = await (await req('/automations/reply-drafter/install')).text();
-    assert.match(html, /id="add" href="https:\/\/www\.icloud\.com\/shortcuts\/abc123"/);
-  } finally {
-    delete a.icloudUrl;
-  }
+  html = await (await req('/automations/reply-drafter/install')).text();
+  assert.match(html, new RegExp(`id="add" href="${findAutomation('reply-drafter').icloudUrl.replaceAll('.', '\\.')}"`));
 });
