@@ -108,17 +108,17 @@ export function landing({ user, starterMicros }) {
     ${starterMicros ? `<p class="small muted hero-note">Sign in with Apple and your first ${starterCents(starterMicros)} of AI is on us.</p>` : ''}
   </div>
   <div class="tiles" aria-label="Featured shortcuts">
-    ${tile(explain)}${tile(reply, ' tilt-r')}${tile(meeting)}
-    ${tile(calories, ' tilt-l')}${tile(sum)}${tile(translate)}
-    <div class="tile tile-result"><div><b>Explain This</b>Your bill went up $38 because the 12-month promo ended on Sept 1. Call and ask for the loyalty rate.</div><small>Llama 3.3 70B · $0.0012</small></div>
-    ${tile(voice, ' tilt-r')}
+    ${tile(meeting)}${tile(reply, ' tilt-r')}${tile(calories)}
+    ${tile(sum, ' tilt-l')}${tile(voice)}${tile(translate)}
+    <div class="tile tile-result"><div><b>Summarize My Meeting Notes</b>Launch locked for Oct 14. Marcus fixes the pricing page by Friday. Jen drafts the launch email Monday.</div><small>Whisper + Llama 3.3 70B · 2.7¢</small></div>
+    ${tile(explain, ' tilt-r')}
   </div>
 </section>
 
 <section class="wrap section center" id="shortcuts">
   <h2>Pick one. It’s on your phone in a minute.</h2>
   <p class="muted">Every shortcut is free. You only pay for the AI it uses, usually well under a cent a run.</p>
-  <div class="grid">${[explain, reply, meeting, calories, sum, voice, remind, receipt, translate, tone, brief, scam].map(card).join('')}</div>
+  <div class="grid">${[meeting, reply, calories, sum, voice, explain, remind, translate, tone, receipt, brief, scam].map(card).join('')}</div>
 </section>
 
 <section class="wrap how" id="how">

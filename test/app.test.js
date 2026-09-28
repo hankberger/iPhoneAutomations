@@ -64,7 +64,7 @@ test('installed shortcuts: install page key, friendly errors, prompts from the c
   await form('/signup', { email: 'p@b.co', password: 'correct horse battery' });
   const html = await (await req('/automations/tone-shifter/install')).text();
   const key = html.match(/data-key="(aa_live_[\w-]+)"/)[1];
-  assert.match(await (await req('/account')).text(), /Tone Shifter/, 'key is named after the shortcut');
+  assert.match(await (await req('/account')).text(), /Change the Tone/, 'key is named after the shortcut');
 
   const run = (slug, body, k = key) => req(`/api/v1/run/${slug}`, {
     method: 'POST', headers: { authorization: `Bearer ${k}`, 'content-type': 'application/json' }, body: JSON.stringify(body),
@@ -201,7 +201,7 @@ test('photo, JSON and audio shortcuts', async () => {
   assert.equal(res.status, 422);
   assert.match((await res.json()).error, /Couldn’t spot any food/);
 
-  // Meeting Notes posts the recording itself: Whisper transcribes, Llama writes the notes, and
+  // Summarize My Meeting Notes posts the recording itself: Whisper transcribes, Llama writes the notes, and
   // both are billed (2 minutes x $0.00051 x 1.5 = $0.00153, plus the notes).
   ai.response = 'Launch sync\nWe ship Friday.\n\nDecisions\n- None';
   const before = await billing.balance(1);

@@ -172,7 +172,7 @@ test('a new Google account gets starter credit once, and the Get flow lands on t
   const { req, signIn, db } = await boot();
   const fake = fakeProviders();
   const next = '/automations/summarize-anything/install';
-  assert.match(await (await req(`/signup?next=${encodeURIComponent(next)}`)).text(), /Get Summarize Anything[\s\S]*25¢ of free credit/);
+  assert.match(await (await req(`/signup?next=${encodeURIComponent(next)}`)).text(), /Get Summarize This[\s\S]*25¢ of free credit/);
   let res = await signIn('google', { sub: 'g-9', email: 'fresh@example.com', email_verified: true }, fake, { next });
   assert.equal(res.headers.get('location'), next);
   const balance = () => db.raw.prepare('SELECT balance_micros AS b FROM users').get().b;
@@ -183,7 +183,7 @@ test('a new Google account gets starter credit once, and the Get flow lands on t
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('cache-control'), 'no-store');
   const html = await res.text();
-  assert.match(html, /shortcuts:\/\/import-shortcut\?url=http%3A%2F%2Flocalhost%2Fshortcuts%2Fsummarize-anything\.shortcut&amp;name=Summarize%20Anything/);
+  assert.match(html, /shortcuts:\/\/import-shortcut\?url=http%3A%2F%2Flocalhost%2Fshortcuts%2Fsummarize-anything\.shortcut&amp;name=Summarize%20This/);
   assert.match(html, /data-key="aa_live_/);
   assert.match(html, /\$0\.25 of credit/);
 
