@@ -83,6 +83,26 @@ export const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 const MIN_AUDIO_BYTES_PER_MINUTE = 50_000;
 export const audioMicros = (minutes) => Math.ceil(minutes * AUDIO_MODELS[AUDIO_MODEL].perMinute * markup() * MICROS);
 
+// Text to image, billed per 512x512 tile of output and per diffusion step, times the markup.
+export const IMAGE_MODELS = {
+  '@cf/black-forest-labs/flux-1-schnell': { label: 'FLUX.1 schnell', perTile: 0.0000528, perStep: 0.0001056, tiles: 4, steps: 4 },
+};
+const MAX_IMAGE_PROMPT = 2048;
+export const imageMicros = (model) => {
+  const m = IMAGE_MODELS[model];
+  return Math.ceil((m.tiles * m.perTile + m.steps * m.perStep) * markup() * MICROS);
+};
+
+// Pick a Category answers with one of the listed choices, whatever the model wrote around it.
+export function matchChoice(answer, choices) {
+  const said = answer.trim().replace(/^["'“]|["'”.]$/g, '').toLowerCase();
+  return choices.find((c) => c.toLowerCase() === said)
+    ?? choices.find((c) => said.includes(c.toLowerCase()))
+    ?? choices[0];
+}
+export const splitChoices = (text) => text.split(/[\n,;]+/).map((c) => c.trim()).filter(Boolean);
+const MAX_INSTRUCTIONS = 8000;
+
 // Cloudflare error codes that mean the caller should retry later rather than fix the request.
 const RATE_LIMIT_CODES = new Set([3036, 3040]);
 
@@ -188,22 +208,58 @@ export function createInference(billing, { ai } = {}) {
   }
 
   // What the installed shortcuts call: the automation supplies the prompt and model, the
-  // shortcut only sends { input, choice?, image? }. A choice outside the automation's list falls
-  // back to its first option, so nothing but the listed words reaches the prompt.
+  // shortcut only sends { input, choice?, image?, instructions? }. A choice outside the
+  // automation's list falls back to its first option, so nothing but the listed words reaches
+  // the prompt. Building blocks (automation.block) take the person's own `instructions` in
+  // place of {{instructions}}; Ask AI with no instructions treats the input as the whole prompt.
   async function runAutomation(user, automation, body) {
-    const input = typeof body.input === 'string' ? body.input.trim() : '';
-    const image = automation.image ? body.image : undefined;
+    let input = typeof body.input === 'string' ? body.input.trim() : '';
+    const takesImage = automation.image || automation.acceptsImage;
+    const image = takesImage && body.image ? body.image : undefined;
     if (automation.image && !image) return { status: 400, json: { error: 'There was no photo to look at. Take or share a photo, then run the shortcut again.' } };
-    if (!input && !image) return { status: 400, json: { error: 'There was nothing to work with. Share some text, or copy it first, then run the shortcut again.' } };
+    if (!input && !image) return { status: 400, json: { error: automation.emptyError ?? 'There was nothing to work with. Share some text, or copy it first, then run the shortcut again.' } };
     const choice = automation.choices ? (automation.choices.includes(body.choice) ? body.choice : automation.choices[0]) : '';
-    const prompt = automation.prompt.replace('{{choice}}', choice);
-    const out = await generate(user, { prompt, input, image, model: automation.model });
+    const instructions = (typeof body.instructions === 'string' ? body.instructions.trim() : '') || automation.defaultInstructions || '';
+    if (instructions.length > MAX_INSTRUCTIONS) return { status: 413, json: { error: 'Those instructions are too long. Keep them under 8,000 characters.' } };
+    if (automation.needsInstructions && !instructions) return { status: 400, json: { error: automation.needsInstructions } };
+    let prompt = automation.prompt.replace('{{choice}}', choice).replace('{{instructions}}', instructions).trim();
+    if (!prompt) [prompt, input] = [input, ''];
+    const model = image && automation.imageModel ? automation.imageModel : automation.model;
+    const out = await generate(user, { prompt, input, image, model, system: automation.system });
     if (out.status !== 200 || !automation.format) return out;
+    if (automation.format === 'choice') return { status: 200, json: { ...out.json, text: matchChoice(out.json.text, splitChoices(instructions)) } };
     // The shortcut feeds the answer straight into Get Dictionary, so hand back
     // exactly that, or a readable error. The run is still charged: the model did the work.
     const clean = FORMATS[automation.format](out.json.text);
     if (!clean) return { status: 422, json: { ...out.json, error: automation.formatError } };
     return { status: 200, json: { ...out.json, text: clean } };
+  }
+
+  // Make an Image: a fixed-size picture has a fixed price, so it is charged up front and
+  // refunded if the model fails. The JPEG comes back base64 in `text`.
+  async function makeImage(user, automation, body) {
+    if (!enabled) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
+    const prompt = [body.input, body.instructions].filter((v) => typeof v === 'string' && v.trim()).join('. ').trim();
+    if (!prompt) return { status: 400, json: { error: 'Describe the picture you want, then run the shortcut again.' } };
+    if (prompt.length > MAX_IMAGE_PROMPT) return { status: 413, json: { error: 'That description is too long. Keep it under 2,000 characters.' } };
+    const model = automation.model;
+    const cost = imageMicros(model);
+    if (!(await billing.reserve(user.id, cost))) {
+      return { status: 402, json: { error: `Not enough credit. An image costs ${formatUsd(cost, 4)}; top up at /account.`, balance_usd: (await billing.balance(user.id)) / MICROS } };
+    }
+    let result;
+    try {
+      result = (await ai.run(model, { prompt, steps: IMAGE_MODELS[model].steps })) ?? {};
+    } catch (err) {
+      await billing.settle(user.id, cost, 0, {});
+      return { status: 502, json: { error: 'Model provider rejected the request.', errors: [{ message: String(err?.message ?? err) }] } };
+    }
+    if (typeof result.image !== 'string' || !result.image) {
+      await billing.settle(user.id, cost, 0, {});
+      return { status: 422, json: { error: 'Couldn’t make that picture. Try describing it differently.' } };
+    }
+    await billing.settle(user.id, cost, cost, { description: `${IMAGE_MODELS[model].label}: 1 image`, model, input_tokens: 0, output_tokens: 0 });
+    return { status: 200, json: { text: result.image, model, cost_usd: cost / MICROS, balance_usd: (await billing.balance(user.id)) / MICROS } };
   }
 
   // Reserves for the longest recording the file could hold, transcribes, then charges the
@@ -238,6 +294,8 @@ export function createInference(billing, { ai } = {}) {
     const heard = await transcribe(user, bytes);
     if (heard.status !== 200) return heard;
     if (!heard.text) return { status: 422, json: { error: 'Couldn’t hear any speech in that recording.' } };
+    // Transcribe Audio has no prompt: the transcript is the answer.
+    if (!automation.prompt) return { status: 200, json: { text: heard.text, model: AUDIO_MODEL, cost_usd: heard.cost_usd, balance_usd: (await billing.balance(user.id)) / MICROS } };
     const out = await generate(user, { prompt: automation.prompt, input: heard.text, model: automation.model });
     if (out.status !== 200) return out;
     return {
@@ -253,5 +311,5 @@ export function createInference(billing, { ai } = {}) {
     return { status: 200, json: { success: true, result: out.result, billing: out.billing } };
   }
 
-  return { enabled, generate, run, runAutomation, runAudioAutomation };
+  return { enabled, generate, run, runAutomation, runAudioAutomation, makeImage };
 }

@@ -1,0 +1,34 @@
+#define color orange
+#define glyph list
+
+// Called from another shortcut with one item, or with a List: what to work on first,
+// your instructions last.
+@content = ShortcutInput
+@instructions = ""
+const items = count(ShortcutInput)
+if items > 1 {
+    @content = getFirstItem(ShortcutInput)
+    const last = getLastItem(ShortcutInput)
+    @instructions = getText(last)
+}
+if !ShortcutInput {
+    @content = getClipboard()
+    @instructions = prompt("Which details? For example: total, date, store")
+}
+// A photo or screenshot goes to a model that can see; anything else goes as text.
+const photos = getImages(@content)
+@image = ""
+@input = ""
+if photos {
+    const small = resizeImageByLongestEdge(photos, "1024")
+    const jpeg = convertToJPEG(small, 0.7, false)
+    @image = base64Encode(jpeg)
+} else {
+    @input = getText(@content)
+}
+// @call
+const details = getDictionary(result)
+if !ShortcutInput {
+    quicklook(details)
+}
+output("{details}")

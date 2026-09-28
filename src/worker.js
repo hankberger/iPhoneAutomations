@@ -147,7 +147,7 @@ app.post('/api/v1/run/:slug', async (c) => {
   } else {
     const { body, error } = await readJson(c);
     if (error) return c.json({ ...error[0], action_url: page }, error[1]);
-    result = await inference.runAutomation(user, a, body);
+    result = await (a.makesImage ? inference.makeImage(user, a, body) : inference.runAutomation(user, a, body));
   }
   const { status, json } = result;
   if (status === 402) return c.json({ ...json, error: 'You’re out of credit. Tap OK to top up. Most runs cost under a cent.', action_url: `${appUrl}/account#balance` }, 402);

@@ -22,11 +22,11 @@ const INCLUDES = ['calendar', 'crypto', 'documents', 'images', 'media', 'network
 // Every shortcut sends its input to /api/v1/run/<slug>. The server owns the prompt and model,
 // so they can change without anyone reinstalling. Errors come back with a message and a link
 // (top up, get a new key) that the shortcut offers to open.
-// A shortcut with `const audio` posts the recording itself; the rest post JSON, adding "choice"
-// and "image" when they define those.
-const request = (url, { choice, image, audio }) => (audio
-  ? `fileRequest("${url}", "POST", audio, {"Authorization": "Bearer {apiKey}"})`
-  : `jsonRequest("${url}", "POST", {"input": "{input}"${choice ? ', "choice": "{choice}"' : ''}${image ? ', "image": "{image}"' : ''}}, {"Authorization": "Bearer {apiKey}"})`);
+// A shortcut with an `audio` variable posts the recording itself; the rest post JSON, adding
+// "choice", "image" and "instructions" when they define those (as `const x` or `@x`).
+const request = (url, { choice, image, audio, instructions }) => (audio
+  ? `fileRequest("${url}", "POST", ${audio}, {"Authorization": "Bearer {apiKey}"})`
+  : `jsonRequest("${url}", "POST", {"input": "{input}"${choice ? ', "choice": "{choice}"' : ''}${image ? ', "image": "{image}"' : ''}${instructions ? ', "instructions": "{instructions}"' : ''}}, {"Authorization": "Bearer {apiKey}"})`);
 const callBlock = (slug, sends) => `
 const apiKey = trimWhitespace(key)
 const response = ${request(`${API_BASE}/api/v1/run/${slug}`, sends)}
@@ -48,8 +48,9 @@ export function cherriSource(a) {
 #question key "${KEY_QUESTION}" ""
 ${body.replace('// @call', callBlock(a.slug, {
     choice: /\bconst choice\b/.test(body),
-    image: /\bconst image\b/.test(body),
-    audio: /\bconst audio\b/.test(body),
+    image: /(\bconst |@)image\b/.test(body),
+    audio: body.match(/\bconst (audio)\b|(@audio)\b/)?.slice(1).find(Boolean),
+    instructions: /@instructions\b/.test(body),
   }))}`;
 }
 

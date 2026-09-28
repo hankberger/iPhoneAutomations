@@ -14,6 +14,7 @@ function fakeAi() {
     if (model === '@cf/meta/llama-3.1-8b-instruct-fp8-fast' && input.messages?.[0]?.content === 'fail') {
       throw new Error('AiError: 5006: bad input');
     }
+    if (model === '@cf/black-forest-labs/flux-1-schnell') return { image: '/9j/picture' };
     if (model === '@cf/openai/whisper-large-v3-turbo') return { text: ' Let’s ship Friday. ', transcription_info: { duration: 120 } };
     return { response: fake.response, usage: { prompt_tokens: 1000, completion_tokens: 200, total_tokens: 1200 } };
   };
@@ -216,6 +217,75 @@ test('photo, JSON and audio shortcuts', async () => {
   assert.equal(before - await billing.balance(1), 1530 + 1116);
   res = await req('/api/v1/run/meeting-notes', { method: 'POST', headers: auth, body: new Uint8Array(0) });
   assert.equal(res.status, 400);
+});
+
+test('building blocks take the person’s own instructions', async () => {
+  const { db, ai, req, form } = await boot();
+  await form('/signup', { email: 'k@b.co', password: 'correct horse battery' });
+  const key = (await (await req('/automations/ask-ai/install')).text()).match(/data-key="(aa_live_[\w-]+)"/)[1];
+  const billing = createBilling(db, { stripeKey: '' });
+  await billing.fulfillCheckout({ id: 'cs_test_4', payment_status: 'paid', metadata: { user_id: '1', credit_micros: '1000000' } });
+  const auth = { authorization: `Bearer ${key}` };
+  const run = (slug, body) => req(`/api/v1/run/${slug}`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const lastMessages = () => ai.calls.at(-1).input.messages;
+
+  // Ask AI: instructions become the prompt; with none, the input is the whole prompt.
+  ai.response = 'Three lines.';
+  let res = await run('ask-ai', { input: 'Long article', instructions: 'Summarize in three lines' });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).text, 'Three lines.');
+  assert.equal(lastMessages()[0].role, 'system');
+  assert.equal(lastMessages()[1].content, 'Summarize in three lines\n\n<input>\nLong article\n</input>');
+  await run('ask-ai', { input: 'What is the capital of France?', instructions: '' });
+  assert.equal(lastMessages()[1].content, 'What is the capital of France?');
+  assert.equal((await run('ask-ai', { input: '' })).status, 400);
+
+  // Ask AI About an Image: a default question when none is given.
+  const photo = `/9j/${'A'.repeat(100)}`;
+  await run('ask-about-image', { input: 'Image', image: photo });
+  assert.equal(ai.calls.at(-1).model, '@cf/mistralai/mistral-small-3.1-24b-instruct');
+  assert.match(lastMessages()[1].content[0].text, /^Describe this image in detail/);
+  assert.equal((await run('ask-about-image', { input: 'Image' })).status, 400, 'needs a photo');
+
+  // Pull Out Details: text goes to Llama, a photo to the vision model; the answer is a clean Dictionary.
+  ai.response = 'Here you go: {"total": 42.5, "store": "Target", "date": ""}';
+  res = await run('pull-out-details', { input: 'Target, $42.50', image: '', instructions: 'total, date, store' });
+  assert.deepEqual(JSON.parse((await res.json()).text), { total: 42.5, store: 'Target' });
+  assert.equal(ai.calls.at(-1).model, '@cf/meta/llama-3.3-70b-instruct-fp8-fast');
+  assert.match(lastMessages()[0].content, /total, date, store/);
+  await run('pull-out-details', { input: '', image: photo, instructions: 'total' });
+  assert.equal(ai.calls.at(-1).model, '@cf/mistralai/mistral-small-3.1-24b-instruct');
+  res = await run('pull-out-details', { input: 'Target, $42.50', instructions: '' });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /Say which details/);
+
+  // Pick a Category: always one of the given choices, written as given.
+  for (const [answer, picked] of [['Needs reply', 'Needs reply'], ['"urgent".', 'Urgent'], ['I would say this is FYI', 'FYI'], ['No idea', 'Urgent']]) {
+    ai.response = answer;
+    res = await run('pick-a-category', { input: 'Can you send the deck?', instructions: 'Urgent, Needs reply, FYI' });
+    assert.equal((await res.json()).text, picked, answer);
+  }
+  assert.equal((await run('pick-a-category', { input: 'x' })).status, 400);
+
+  // Make an Image: charged a fixed price (4 tiles x $0.0000528 + 4 steps x $0.0001056, x 1.5).
+  let before = await billing.balance(1);
+  res = await run('make-an-image', { input: 'A fox in the snow', instructions: 'watercolor' });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).text, '/9j/picture');
+  assert.deepEqual(ai.calls.at(-1).input, { prompt: 'A fox in the snow. watercolor', steps: 4 });
+  assert.equal(before - await billing.balance(1), 951);
+  assert.equal((await run('make-an-image', { input: ' ' })).status, 400);
+
+  // Transcribe Audio: the transcript is the answer, billed for the audio only.
+  before = await billing.balance(1);
+  res = await req('/api/v1/run/transcribe-audio', { method: 'POST', headers: { ...auth, 'content-type': 'audio/m4a' }, body: new Uint8Array(200_000) });
+  assert.equal((await res.json()).text, 'Let’s ship Friday.');
+  assert.equal(ai.calls.at(-1).model, '@cf/openai/whisper-large-v3-turbo');
+  assert.equal(before - await billing.balance(1), 1530);
+
+  for (const slug of ['ask-ai', 'ask-about-image', 'transcribe-audio', 'pull-out-details', 'pick-a-category', 'make-an-image']) {
+    assert.equal((await req(`/automations/${slug}`)).status, 200, slug);
+  }
 });
 
 test('install page downloads the signed file under the shortcut’s name, or opens its iCloud link', async () => {

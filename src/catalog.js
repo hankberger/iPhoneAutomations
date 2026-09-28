@@ -1,4 +1,4 @@
-import { costMicros, audioMicros } from './inference.js';
+import { costMicros, audioMicros, imageMicros } from './inference.js';
 
 // Each automation ships as a signed shortcut built from shortcuts/<slug>.cherri
 // (npm run shortcuts). The shortcut sends its input to /api/v1/run/<slug>; the prompt
@@ -8,9 +8,114 @@ import { costMicros, audioMicros } from './inference.js';
 // those; without one, the install page downloads the signed file instead.
 const CALL = { action: 'Ask Advanced Automations', detail: 'Sends the text to our API with your key. Nothing else leaves your phone.' };
 
-export const CATEGORIES = ['Writing', 'Productivity', 'Capture', 'Everyday'];
+export const CATEGORIES = ['Building Blocks', 'Writing', 'Productivity', 'Capture', 'Everyday'];
+
+// Building blocks are the AI steps people put inside their own shortcuts with Run Shortcut. They
+// take one item, or a List of what to work on followed by instructions, and output the answer.
+// Their prompt is the person's own `instructions`, wrapped where the block needs a set answer.
+const BLOCK = 'Building Blocks';
+const USE = 'Add Run Shortcut to your own shortcut and pick this one. Pass it one item, or a List with what to work on first and your instructions last.';
+const BLOCK_CALL = { action: 'Ask Advanced Automations', detail: 'Sends what you passed in, and your instructions, to our API with your key.' };
+const BLOCK_OUT = { action: 'Stop and Output', detail: 'Hands the answer back to your shortcut. Run on its own, it shows it.' };
+const BLOCKS = [
+  {
+    slug: 'ask-ai',
+    icon: 'spark',
+    color: 'violet',
+    name: 'Ask AI',
+    tagline: 'Text in, answer out. The block behind "summarize this", "draft a reply" and anything else you can put in words.',
+    trigger: 'Run Shortcut',
+    runTip: `${USE} Example: Get Clipboard, then a List of Clipboard and "Summarize in three lines", then Run Shortcut Ask AI.`,
+    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    typicalTokens: [600, 250],
+    prompt: '{{instructions}}',
+    system: 'You are a step inside an iPhone shortcut. Do exactly what is asked and output only the result, as plain text with no Markdown and no preamble.',
+    inside: [{ action: 'Get Text from Input', detail: 'Or asks you, when run on its own.' }, BLOCK_CALL, BLOCK_OUT],
+  },
+  {
+    slug: 'ask-about-image',
+    icon: 'eye',
+    color: 'teal',
+    name: 'Ask AI About an Image',
+    tagline: 'A photo or screenshot plus a question, answered in words.',
+    trigger: 'Run Shortcut',
+    runTip: `${USE} Example: Take Screenshot, then a List of Screenshot and "What app is this and what does the error mean?". With no question, it describes the image.`,
+    model: '@cf/mistralai/mistral-small-3.1-24b-instruct',
+    typicalTokens: [3200, 250],
+    image: true,
+    prompt: '{{instructions}}',
+    defaultInstructions: 'Describe this image in detail, including any text in it.',
+    system: 'You are a step inside an iPhone shortcut. Answer about the image exactly as asked and output only the answer, as plain text with no Markdown and no preamble.',
+    inside: [
+      { action: 'Resize Image', detail: 'A 1024 pixel JPEG, so every run costs about the same.' },
+      BLOCK_CALL, BLOCK_OUT,
+    ],
+  },
+  {
+    slug: 'transcribe-audio',
+    icon: 'mic',
+    color: 'red',
+    name: 'Transcribe Audio',
+    tagline: 'A recording or voice memo in, the words out.',
+    trigger: 'Run Shortcut',
+    runTip: 'Add Run Shortcut to your own shortcut, pick this one and pass it a recording or audio file. Pair it with Ask AI to summarize what was said. Run on its own, it records until you tap stop.',
+    model: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
+    typicalTokens: [0, 0],
+    typicalMinutes: 5,
+    audio: true,
+    prompt: '',
+    inside: [{ action: 'Record Audio', detail: 'Only when run on its own.' }, { action: 'Ask Advanced Automations', detail: 'Sends the recording to our API with your key.' }, BLOCK_OUT],
+  },
+  {
+    slug: 'pull-out-details',
+    icon: 'list',
+    color: 'orange',
+    name: 'Pull Out Details',
+    tagline: 'Name the details you want and get them back as a Dictionary, from text or a photo.',
+    trigger: 'Run Shortcut',
+    runTip: `${USE} Example: a List of a receipt photo and "total, date, store", then Get Dictionary Value "total".`,
+    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    imageModel: '@cf/mistralai/mistral-small-3.1-24b-instruct',
+    typicalTokens: [700, 120],
+    acceptsImage: true,
+    needsInstructions: 'Say which details to pull out, like "total, date, store", as the last item of the List you pass in.',
+    prompt: 'Pull these details out of the input: {{instructions}}. Reply with only a JSON object. Use each detail name exactly as written as a key, and give each value as plain text or a number. Leave out any detail you cannot find.',
+    format: 'json',
+    formatError: 'Couldn’t find any of those details. Check the input and the detail names, then try again.',
+    inside: [{ action: 'Resize Image', detail: 'Only for a photo or screenshot.' }, BLOCK_CALL, { action: 'Get Dictionary', detail: 'Then Stop and Output hands the Dictionary back to your shortcut.' }],
+  },
+  {
+    slug: 'pick-a-category',
+    icon: 'tag',
+    color: 'blue',
+    name: 'Pick a Category',
+    tagline: 'Give it text and a list of choices; it answers with exactly one, ready for an If.',
+    trigger: 'Run Shortcut',
+    runTip: `${USE} Example: a List of an email and "Urgent, Needs reply, FYI", then If Shortcut Result is Urgent.`,
+    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    typicalTokens: [500, 10],
+    needsInstructions: 'Give it the choices, like "Work, Personal, Errands", as the last item of the List you pass in.',
+    prompt: 'Which one of these categories fits the input best: {{instructions}}? Reply with only that category, written exactly as given.',
+    format: 'choice',
+    inside: [BLOCK_CALL, { action: 'Stop and Output', detail: 'Always one of your choices, written exactly as you gave it.' }],
+  },
+  {
+    slug: 'make-an-image',
+    icon: 'image',
+    color: 'pink',
+    name: 'Make an Image',
+    tagline: 'Describe a picture and get a 1024 pixel image back.',
+    trigger: 'Run Shortcut',
+    runTip: 'Add Run Shortcut to your own shortcut, pick this one and pass it a description. Save the result to Photos or set it as your wallpaper. Run on its own, it asks what to draw.',
+    model: '@cf/black-forest-labs/flux-1-schnell',
+    makesImage: true,
+    prompt: '',
+    inside: [BLOCK_CALL, { action: 'Base64 Decode', detail: 'Turns the answer into a JPEG.' }, BLOCK_OUT],
+  },
+].map((b) => ({ ...b, block: true, category: BLOCK }));
 
 export const AUTOMATIONS = [
+  ...BLOCKS,
   {
     slug: 'explain-this',
     icon: 'bulb',
@@ -244,6 +349,8 @@ export const AUTOMATIONS = [
 
 // Typical cost in USD at current prices and markup, for display.
 // Audio automations add transcription for their typical recording length.
-for (const a of AUTOMATIONS) a.typicalCost = (costMicros(a.model, ...a.typicalTokens) + (a.audio ? audioMicros(a.typicalMinutes) : 0)) / 1e6;
+for (const a of AUTOMATIONS) {
+  a.typicalCost = (a.makesImage ? imageMicros(a.model) : costMicros(a.model, ...a.typicalTokens) + (a.audio ? audioMicros(a.typicalMinutes) : 0)) / 1e6;
+}
 
 export const findAutomation = (slug) => AUTOMATIONS.find((a) => a.slug === slug);
