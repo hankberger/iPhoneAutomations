@@ -7,12 +7,6 @@ export const MODELS = {
   '@cf/mistralai/mistral-small-3.1-24b-instruct': { label: 'Mistral Small 3.1', input: 0.351, output: 0.555, vision: true },
   '@cf/meta/llama-3.1-8b-instruct-fp8-fast': { label: 'Llama 3.1 8B', input: 0.045, output: 0.384 },
 };
-// Models reached through OpenRouter. Their price varies per request (a router picks the model
-// underneath), so each call reserves `maxCostUsd` and is charged the USD cost OpenRouter reports,
-// times the markup. They are only used by building blocks, not the Workers AI pass-through.
-export const ROUTED_MODELS = {
-  'typesafe/jev-router': { label: 'TypeSafe Jev', maxCostUsd: 0.02 },
-};
 export const DEFAULT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const DEFAULT_MAX_TOKENS = 1024;
 const MAX_TOKENS_CAP = 4096;
@@ -100,22 +94,6 @@ export const imageMicros = (model, inputTokens, outputTokens) => {
   return Math.ceil((inputTokens * m.textInput + outputTokens * m.imageOutput) * markup());
 };
 
-// OpenRouter's chat API, answering in the Workers AI shape ({ response, usage }) plus `cost` in USD.
-export function openrouterChat(apiKey, fetchImpl = globalThis.fetch) {
-  return {
-    async run(model, input) {
-      const res = await fetchImpl('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://iphoneadvanced.com', 'X-Title': 'Advanced Automations' },
-        body: JSON.stringify({ model, messages: input.messages, max_tokens: input.max_tokens, usage: { include: true } }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.error) throw new Error(data.error?.message ?? `OpenRouter returned ${res.status}`);
-      return { response: data.choices?.[0]?.message?.content ?? '', usage: data.usage, cost: data.usage?.cost, routed_to: data.model };
-    },
-  };
-}
-
 // OpenAI's image API, with the same run(input) -> { image, usage } shape the tests fake.
 export function openaiImages(apiKey, fetchImpl = globalThis.fetch) {
   return {
@@ -167,15 +145,13 @@ export function restAi(accountId, apiToken, fetchImpl = globalThis.fetch) {
 
 // `ai` is the Workers AI binding (env.AI). Calls bill to this Cloudflare account and
 // no API token is involved.
-export function createInference(billing, { ai, images, router } = {}) {
+export function createInference(billing, { ai, images } = {}) {
   const enabled = Boolean(ai);
 
   // Reserves the worst case, calls Workers AI, then charges actual usage and refunds the rest.
   async function meteredRun(user, model, payload) {
-    const routed = ROUTED_MODELS[model];
-    if (routed && !router) return { status: 503, json: { error: 'This model is not configured on this server.' } };
-    if (!routed && !enabled) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
-    if (!routed && !MODELS[model]) return { status: 400, json: { error: `Unsupported model. Use one of: ${Object.keys(MODELS).join(', ')}` } };
+    if (!enabled) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
+    if (!MODELS[model]) return { status: 400, json: { error: `Unsupported model. Use one of: ${Object.keys(MODELS).join(', ')}` } };
     if (payload.stream) return { status: 400, json: { error: 'Streaming is not supported yet. Remove "stream": true.' } };
 
     const requested = Number(payload.max_tokens);
@@ -186,7 +162,7 @@ export function createInference(billing, { ai, images, router } = {}) {
     if (size > MAX_BODY_CHARS) return { status: 413, json: { error: 'Request is too large.' } };
 
     // A token is never shorter than one character, so body length bounds the text tokens.
-    const reserved = routed ? Math.ceil(routed.maxCostUsd * markup() * MICROS) : costMicros(model, size + images * IMAGE_TOKENS, maxTokens);
+    const reserved = costMicros(model, size + images * IMAGE_TOKENS, maxTokens);
     if (!(await billing.reserve(user.id, reserved))) {
       return {
         status: 402,
@@ -196,7 +172,7 @@ export function createInference(billing, { ai, images, router } = {}) {
 
     let result;
     try {
-      result = (await (routed ? router : ai).run(model, input)) ?? {};
+      result = (await ai.run(model, input)) ?? {};
     } catch (err) {
       await billing.settle(user.id, reserved, 0, {});
       const message = String(err?.message ?? err);
@@ -210,11 +186,9 @@ export function createInference(billing, { ai, images, router } = {}) {
     // Most Workers AI text models report usage; estimate at ~4 characters per token when one does not.
     const inputTokens = result.usage?.prompt_tokens ?? Math.ceil(size / 4);
     const outputTokens = result.usage?.completion_tokens ?? Math.ceil(JSON.stringify(result.response ?? '').length / 4);
-    // A routed call with no reported cost is charged the reserve, never nothing.
-    const cost = routed ? (Number.isFinite(result.cost) ? Math.ceil(result.cost * markup() * MICROS) : reserved) : costMicros(model, inputTokens, outputTokens);
-    const actual = Math.min(cost, reserved);
+    const actual = Math.min(costMicros(model, inputTokens, outputTokens), reserved);
     await billing.settle(user.id, reserved, actual, {
-      description: `${(routed ?? MODELS[model]).label}: ${inputTokens} in / ${outputTokens} out`,
+      description: `${MODELS[model].label}: ${inputTokens} in / ${outputTokens} out`,
       model, input_tokens: inputTokens, output_tokens: outputTokens,
     });
 
@@ -357,7 +331,6 @@ export function createInference(billing, { ai, images, router } = {}) {
 
   // Pass-through that mirrors Cloudflare's /ai/run/{model} REST request and response shape.
   async function run(user, model, body) {
-    if (!MODELS[model]) return { status: 400, json: { success: false, error: `Unsupported model. Use one of: ${Object.keys(MODELS).join(', ')}` } };
     const out = await meteredRun(user, model, body ?? {});
     if (out.status !== 200) return { status: out.status, json: { success: false, ...out.json } };
     return { status: 200, json: { success: true, result: out.result, billing: out.billing } };
