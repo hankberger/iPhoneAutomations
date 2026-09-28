@@ -1,0 +1,23 @@
+diff --git a/raw_actions.go b/raw_actions.go
+index d3f0b31..0c2291b 100644
+--- a/raw_actions.go
++++ b/raw_actions.go
+@@ -56,6 +56,18 @@ func normalizeRawActionParamValue(value any) any {
+ 		}
+ 		return attachmentValues(v)
+ 	case map[string]any:
++		// {"Magnitude": ..., "Unit": "..."} is a quantity, as Log Health Sample takes.
++		if magnitude, ok := v["Magnitude"]; ok && len(v) == 2 {
++			if unit, ok := v["Unit"].(string); ok {
++				return map[string]any{
++					"Value": map[string]any{
++						"Magnitude": normalizeRawActionParamValue(magnitude),
++						"Unit":      unit,
++					},
++					"WFSerializationType": "WFQuantityFieldValue",
++				}
++			}
++		}
+ 		var normalized any = normalizeRawActionDictionary(v)
+ 		return makeDictionaryValue(&normalized)
+ 	case []any:

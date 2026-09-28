@@ -1,0 +1,9 @@
+#define color red
+#define glyph waveform
+
+action 'com.apple.mobilenotes.SharingExtension' createNote(text body: 'WFCreateNoteInput')
+
+const audio = recordAudio("Normal", "Immediately")
+// @call
+createNote("{result}")
+showNotification("{result}", "Saved to Notes")

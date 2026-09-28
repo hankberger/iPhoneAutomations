@@ -7,14 +7,16 @@ import { createBilling } from '../src/billing.js';
 // Fake Workers AI binding: records calls and reports fixed usage so billing is predictable.
 function fakeAi() {
   const calls = [];
-  const run = async (model, input) => {
+  const fake = { calls, response: 'hi' };
+  fake.run = async (model, input) => {
     calls.push({ model, input });
     if (model === '@cf/meta/llama-3.1-8b-instruct-fp8-fast' && input.messages?.[0]?.content === 'fail') {
       throw new Error('AiError: 5006: bad input');
     }
-    return { response: 'hi', usage: { prompt_tokens: 1000, completion_tokens: 200, total_tokens: 1200 } };
+    if (model === '@cf/openai/whisper-large-v3-turbo') return { text: ' Let’s ship Friday. ', transcription_info: { duration: 120 } };
+    return { response: fake.response, usage: { prompt_tokens: 1000, completion_tokens: 200, total_tokens: 1200 } };
   };
-  return { run, calls };
+  return fake;
 }
 
 async function boot() {
@@ -62,7 +64,7 @@ test('installed shortcuts: install page key, friendly errors, prompts from the c
   await form('/signup', { email: 'p@b.co', password: 'correct horse battery' });
   const html = await (await req('/automations/tone-shifter/install')).text();
   const key = html.match(/data-key="(aa_live_[\w-]+)"/)[1];
-  assert.match(await (await req('/account')).text(), /Tone Shifter/, 'key is named after the shortcut');
+  assert.match(await (await req('/account')).text(), /Change the Tone/, 'key is named after the shortcut');
 
   const run = (slug, body, k = key) => req(`/api/v1/run/${slug}`, {
     method: 'POST', headers: { authorization: `Bearer ${k}`, 'content-type': 'application/json' }, body: JSON.stringify(body),
@@ -171,4 +173,46 @@ test('signup, login, csrf, keys and metered Cloudflare proxy', async () => {
   assert.equal((await req('/account')).status, 302);
   assert.equal((await form('/login', { email: 'a@b.co', password: 'wrong password!' })).status, 401);
   assert.equal((await form('/login', { email: 'a@b.co', password: 'correct horse battery' })).status, 303);
+});
+
+test('photo, JSON and audio shortcuts', async () => {
+  const { db, ai, req, form } = await boot();
+  await form('/signup', { email: 'p@b.co', password: 'correct horse battery' });
+  const key = (await (await req('/automations/snap-calories/install')).text()).match(/data-key="(aa_live_[\w-]+)"/)[1];
+  const billing = createBilling(db, { stripeKey: '' });
+  await billing.fulfillCheckout({ id: 'cs_test_3', payment_status: 'paid', metadata: { user_id: '1', credit_micros: '1000000' } });
+  const auth = { authorization: `Bearer ${key}` };
+  const run = (slug, body) => req(`/api/v1/run/${slug}`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+
+  // Shortcuts' Base64 Encode wraps lines; the photo goes up as a data URL and isn't held to the
+  // text size limit. The JSON answer comes back clean, without false or empty keys.
+  ai.response = 'Sure! {"meal": "Pad thai", "calories": 650, "protein": 24, "carbs": 80, "fat": 22, "note": ""} Enjoy.';
+  const photo = `/9j/${'A'.repeat(76)}\n${'B'.repeat(300_000)}`;
+  let res = await run('snap-calories', { input: 'Photo of a meal', image: photo });
+  assert.equal(res.status, 200);
+  assert.deepEqual(JSON.parse((await res.json()).text), { meal: 'Pad thai', calories: 650, protein: 24, carbs: 80, fat: 22 });
+  const [, image] = ai.calls.at(-1).input.messages[0].content;
+  assert.equal(ai.calls.at(-1).model, '@cf/mistralai/mistral-small-3.1-24b-instruct');
+  assert.equal(image.image_url.url, `data:image/jpeg;base64,/9j/${'A'.repeat(76)}${'B'.repeat(300_000)}`);
+  assert.equal((await run('snap-calories', { input: 'x' })).status, 400, 'needs a photo');
+  assert.equal((await run('snap-calories', { input: 'x', image: 'not an image' })).status, 400);
+  ai.response = 'I don’t see any food.';
+  res = await run('snap-calories', { input: 'x', image: photo });
+  assert.equal(res.status, 422);
+  assert.match((await res.json()).error, /Couldn’t spot any food/);
+
+  // Summarize My Meeting Notes posts the recording itself: Whisper transcribes, Llama writes the notes, and
+  // both are billed (2 minutes x $0.00051 x 1.5 = $0.00153, plus the notes).
+  ai.response = 'Launch sync\nWe ship Friday.\n\nDecisions\n- None';
+  const before = await billing.balance(1);
+  res = await req('/api/v1/run/meeting-notes', { method: 'POST', headers: { ...auth, 'content-type': 'audio/m4a' }, body: new Uint8Array(200_000) });
+  const json = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(json.text, 'Launch sync\nWe ship Friday.\n\nTranscript\nLet’s ship Friday.');
+  assert.equal(ai.calls.at(-2).model, '@cf/openai/whisper-large-v3-turbo');
+  assert.equal(typeof ai.calls.at(-2).input.audio, 'string');
+  assert.match(ai.calls.at(-1).input.messages[0].content, /<input>\nLet’s ship Friday\.\n<\/input>/);
+  assert.equal(before - await billing.balance(1), 1530 + 1116);
+  res = await req('/api/v1/run/meeting-notes', { method: 'POST', headers: auth, body: new Uint8Array(0) });
+  assert.equal(res.status, 400);
 });

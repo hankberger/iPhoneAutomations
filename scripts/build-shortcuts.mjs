@@ -1,7 +1,8 @@
 // Compiles shortcuts/*.cherri into signed, installable files at public/shortcuts/<slug>.shortcut.
 //
-// Needs the Cherri compiler (https://github.com/electrikmilk/cherri) with the import question
-// fix in scripts/cherri-import-questions.patch, on PATH or at CHERRI=/path/to/cherri.
+// Needs the Cherri compiler (https://github.com/electrikmilk/cherri) built with the import
+// question fix in scripts/cherri-import-questions.patch and the Log Health Sample quantity
+// support in scripts/cherri-health-quantity.patch, on PATH or at CHERRI=/path/to/cherri.
 // Usage: npm run shortcuts [-- slug ...]
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
@@ -15,15 +16,20 @@ const CHERRI = process.env.CHERRI || 'cherri';
 const API_BASE = (process.env.SHORTCUT_API_BASE || 'https://iphoneadvanced.com').replace(/\/$/, '');
 export const KEY_QUESTION = 'Paste your Advanced Automations key. We copied it for you when you tapped Add to Shortcuts.';
 
-const INCLUDES = ['calendar', 'documents', 'media', 'network', 'photos', 'sharing', 'text', 'web']
+const INCLUDES = ['calendar', 'crypto', 'documents', 'images', 'media', 'network', 'photos', 'sharing', 'text', 'web']
   .map((c) => `#include 'actions/${c}'`).join('\n');
 
 // Every shortcut sends its input to /api/v1/run/<slug>. The server owns the prompt and model,
 // so they can change without anyone reinstalling. Errors come back with a message and a link
 // (top up, get a new key) that the shortcut offers to open.
-const callBlock = (slug, hasChoice) => `
+// A shortcut with `const audio` posts the recording itself; the rest post JSON, adding "choice"
+// and "image" when they define those.
+const request = (url, { choice, image, audio }) => (audio
+  ? `fileRequest("${url}", "POST", audio, {"Authorization": "Bearer {apiKey}"})`
+  : `jsonRequest("${url}", "POST", {"input": "{input}"${choice ? ', "choice": "{choice}"' : ''}${image ? ', "image": "{image}"' : ''}}, {"Authorization": "Bearer {apiKey}"})`);
+const callBlock = (slug, sends) => `
 const apiKey = trimWhitespace(key)
-const response = jsonRequest("${API_BASE}/api/v1/run/${slug}", "POST", {"input": "{input}"${hasChoice ? ', "choice": "{choice}"' : ''}}, {"Authorization": "Bearer {apiKey}"})
+const response = ${request(`${API_BASE}/api/v1/run/${slug}`, sends)}
 const reply = getDictionary(response)
 const result = getValue(reply, "text")
 if !result {
@@ -40,7 +46,11 @@ export function cherriSource(a) {
   return `${INCLUDES}
 #define name ${a.name}
 #question key "${KEY_QUESTION}" ""
-${body.replace('// @call', callBlock(a.slug, /\bconst choice\b/.test(body)))}`;
+${body.replace('// @call', callBlock(a.slug, {
+    choice: /\bconst choice\b/.test(body),
+    image: /\bconst image\b/.test(body),
+    audio: /\bconst audio\b/.test(body),
+  }))}`;
 }
 
 // Checks that the import question points at the Trim Whitespace action that holds the key.

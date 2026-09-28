@@ -1,5 +1,5 @@
-import { AUTOMATIONS, CATEGORIES } from './catalog.js';
-import { MODELS, retailPrice } from './inference.js';
+import { AUTOMATIONS, CATEGORIES, findAutomation } from './catalog.js';
+import { MODELS, AUDIO_MODELS, retailPrice } from './inference.js';
 import { TOPUP_AMOUNTS, formatUsd, MICROS } from './billing.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -19,6 +19,10 @@ const ICONS = {
   key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3"/>',
   bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+  wave: '<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/>',
+  apple: '<path d="M12 7c-1.5-1-5-1.5-6.5 1.5S5 16 7 19c1.2 1.8 2.8 2 5 1 2.2 1 3.8.8 5-1 2-3 2.5-7.5 1-10.5S13.5 6 12 7z"/><path d="M12 7c0-2 1-3.5 3-4"/>',
+  shield: '<path d="M12 3 5 6v5c0 5 3 8.5 7 10 4-1.5 7-5 7-10V6z"/><path d="M12 8v4M12 15.5v.5"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
 };
 export const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
@@ -86,7 +90,10 @@ export const starterCents = (micros) => `${Math.round(micros / 10_000)}¢`;
 const installHref = (a, user) => (user ? `/automations/${a.slug}/install` : `/signup?next=${encodeURIComponent(`/automations/${a.slug}/install`)}`);
 
 export function landing({ user, starterMicros }) {
-  const [sum, reply, tone, voice, remind, receipt, translate, brief] = AUTOMATIONS;
+  const [explain, reply, meeting, calories, sum, tone, voice, remind, receipt, translate, scam, brief] = [
+    'explain-this', 'reply-drafter', 'meeting-notes', 'snap-calories', 'summarize-anything', 'tone-shifter',
+    'voice-to-notes', 'smart-reminders', 'receipt-reader', 'translate-selection', 'scam-check', 'morning-brief',
+  ].map(findAutomation);
   return layout({
     user,
     body: `
@@ -101,17 +108,17 @@ export function landing({ user, starterMicros }) {
     ${starterMicros ? `<p class="small muted hero-note">Sign in with Apple and your first ${starterCents(starterMicros)} of AI is on us.</p>` : ''}
   </div>
   <div class="tiles" aria-label="Featured shortcuts">
-    ${tile(sum)}${tile(reply, ' tilt-r')}${tile(voice)}
-    ${tile(remind, ' tilt-l')}${tile(receipt)}${tile(translate)}
-    <div class="tile tile-result"><div><b>Summarize Anything</b>Launch moves to Oct 14. Design review Thursday. Budget unchanged.</div><small>Llama 3.3 70B · $0.0006</small></div>
-    ${tile(brief, ' tilt-r')}
+    ${tile(meeting)}${tile(reply, ' tilt-r')}${tile(calories)}
+    ${tile(sum, ' tilt-l')}${tile(voice)}${tile(translate)}
+    <div class="tile tile-result"><div><b>Summarize My Meeting Notes</b>Launch locked for Oct 14. Marcus fixes the pricing page by Friday. Jen drafts the launch email Monday.</div><small>Whisper + Llama 3.3 70B · 2.7¢</small></div>
+    ${tile(explain, ' tilt-r')}
   </div>
 </section>
 
 <section class="wrap section center" id="shortcuts">
   <h2>Pick one. It’s on your phone in a minute.</h2>
   <p class="muted">Every shortcut is free. You only pay for the AI it uses, usually well under a cent a run.</p>
-  <div class="grid">${[sum, reply, voice, remind, receipt, translate, brief, tone].map(card).join('')}</div>
+  <div class="grid">${[meeting, reply, calories, sum, voice, explain, remind, translate, tone, receipt, brief, scam].map(card).join('')}</div>
 </section>
 
 <section class="wrap how" id="how">
@@ -149,7 +156,9 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
   const inside = a.inside.map((s, i) => `
     <li><span class="step-n">${i + 1}</span><div><strong>${e(s.action)}</strong>${s.detail ? `<p>${e(s.detail)}</p>` : ''}</div></li>`).join('');
   const runUrl = apiUrl.replace('/generate', `/run/${a.slug}`);
-  const example = `curl ${runUrl} \\\n  -H "Authorization: Bearer YOUR_KEY" \\\n  -d '{"input": "…"${a.choices ? `, "choice": "${a.choices[0]}"` : ''}}'`;
+  const example = a.audio
+    ? `curl ${runUrl} \\\n  -H "Authorization: Bearer YOUR_KEY" \\\n  --data-binary @meeting.m4a`
+    : `curl ${runUrl} \\\n  -H "Authorization: Bearer YOUR_KEY" \\\n  -d '{"input": "…"${a.choices ? `, "choice": "${a.choices[0]}"` : ''}${a.image ? ', "image": "<base64 JPEG>"' : ''}}'`;
   return layout({
     title: a.name,
     user,
@@ -168,8 +177,8 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
       </div>
       <dl class="facts">
         <div><dt>Runs from</dt><dd>${e(a.trigger)}</dd></div>
-        <div><dt>Model</dt><dd>${e(MODELS[a.model].label)}</dd></div>
-        <div><dt>Typical cost</dt><dd>~${cents(a.typicalCost)} per run</dd></div>
+        <div><dt>Model</dt><dd>${a.audio ? `${e(Object.values(AUDIO_MODELS)[0].label.replace(/ Large.*/, ''))} + ` : ''}${e(MODELS[a.model].label)}</dd></div>
+        <div><dt>Typical cost</dt><dd>~${cents(a.typicalCost)} ${a.audio ? `per ${a.typicalMinutes}-minute recording` : 'per run'}</dd></div>
       </dl>
     </div>
   </div>

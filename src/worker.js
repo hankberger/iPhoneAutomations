@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createAuth, validateCredentials, rateLimiter, safeEqual, SESSION_COOKIE } from './auth.js';
 import { createBilling } from './billing.js';
-import { createInference, restAi } from './inference.js';
+import { createInference, restAi, MAX_AUDIO_BYTES } from './inference.js';
 import { oauthProviders, startFlow, finishFlow } from './oauth.js';
 import { findAutomation, CATEGORIES } from './catalog.js';
 import { MICROS } from './billing.js';
@@ -139,9 +139,17 @@ app.post('/api/v1/run/:slug', async (c) => {
   const page = `${appUrl}/automations/${a.slug}`;
   const user = await bearerUser(c);
   if (!user) return c.json({ error: 'This shortcut’s key isn’t working. Tap OK to add it again with a fresh key.', action_url: page }, 401);
-  const { body, error } = await readJson(c);
-  if (error) return c.json({ ...error[0], action_url: page }, error[1]);
-  const { status, json } = await inference.runAutomation(user, a, body);
+  let result;
+  if (a.audio) {
+    // Audio shortcuts post the recording itself as the body.
+    if (Number(c.req.header('content-length')) > MAX_AUDIO_BYTES) return c.json({ error: 'That recording is too long. Recordings up to about 45 minutes work.', action_url: page }, 413);
+    result = await inference.runAudioAutomation(user, a, await c.req.arrayBuffer());
+  } else {
+    const { body, error } = await readJson(c);
+    if (error) return c.json({ ...error[0], action_url: page }, error[1]);
+    result = await inference.runAutomation(user, a, body);
+  }
+  const { status, json } = result;
   if (status === 402) return c.json({ ...json, error: 'You’re out of credit. Tap OK to top up. Most runs cost under a cent.', action_url: `${appUrl}/account#balance` }, 402);
   if (status !== 200) return c.json({ ...json, error: json.error === 'Model provider rejected the request.' ? 'The AI couldn’t answer that one. Please try again in a moment.' : json.error, action_url: page }, status);
   return c.json(json);
