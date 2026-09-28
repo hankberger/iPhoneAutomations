@@ -1,4 +1,4 @@
-import { costMicros, audioMicros, imageMicros } from './inference.js';
+import { costMicros, audioMicros, imageMicros, IMAGE_MODELS } from './inference.js';
 
 // Each automation ships as a signed shortcut built from shortcuts/<slug>.cherri
 // (npm run shortcuts). The shortcut sends its input to /api/v1/run/<slug>; the prompt
@@ -107,7 +107,7 @@ const BLOCKS = [
     tagline: 'Describe a picture and get a 1024 pixel image back.',
     trigger: 'Run Shortcut',
     runTip: 'Add Run Shortcut to your own shortcut, pick this one and pass it a description. Save the result to Photos or set it as your wallpaper. Run on its own, it asks what to draw.',
-    model: '@cf/black-forest-labs/flux-1-schnell',
+    model: 'gpt-image-2',
     makesImage: true,
     prompt: '',
     inside: [BLOCK_CALL, { action: 'Base64 Decode', detail: 'Turns the answer into a JPEG.' }, BLOCK_OUT],
@@ -350,7 +350,7 @@ export const AUTOMATIONS = [
 // Typical cost in USD at current prices and markup, for display.
 // Audio automations add transcription for their typical recording length.
 for (const a of AUTOMATIONS) {
-  a.typicalCost = (a.makesImage ? imageMicros(a.model) : costMicros(a.model, ...a.typicalTokens) + (a.audio ? audioMicros(a.typicalMinutes) : 0)) / 1e6;
+  a.typicalCost = (a.makesImage ? imageMicros(a.model, ...IMAGE_MODELS[a.model].typicalTokens) : costMicros(a.model, ...a.typicalTokens) + (a.audio ? audioMicros(a.typicalMinutes) : 0)) / 1e6;
 }
 
 export const findAutomation = (slug) => AUTOMATIONS.find((a) => a.slug === slug);

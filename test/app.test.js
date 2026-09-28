@@ -14,7 +14,6 @@ function fakeAi() {
     if (model === '@cf/meta/llama-3.1-8b-instruct-fp8-fast' && input.messages?.[0]?.content === 'fail') {
       throw new Error('AiError: 5006: bad input');
     }
-    if (model === '@cf/black-forest-labs/flux-1-schnell') return { image: '/9j/picture' };
     if (model === '@cf/openai/whisper-large-v3-turbo') return { text: ' Let’s ship Friday. ', transcription_info: { duration: 120 } };
     return { response: fake.response, usage: { prompt_tokens: 1000, completion_tokens: 200, total_tokens: 1200 } };
   };
@@ -24,7 +23,9 @@ function fakeAi() {
 async function boot() {
   const db = memoryD1();
   const ai = fakeAi();
-  const env = { DB: db, AI: ai, APP_URL: 'http://localhost' };
+  const images = { calls: [], run: async (input) => (images.calls.push(input), { image: '/9j/picture', usage: { input_tokens: 14, output_tokens: 196 } }) };
+  ai.images = images;
+  const env = { DB: db, AI: ai, IMAGES: images, APP_URL: 'http://localhost' };
   let cookie = '';
   const req = async (path, opts = {}) => {
     const res = await app.fetch(new Request(`http://localhost${path}`, { redirect: 'manual', ...opts, headers: { cookie, ...opts.headers } }), env);
@@ -267,13 +268,14 @@ test('building blocks take the person’s own instructions', async () => {
   }
   assert.equal((await run('pick-a-category', { input: 'x' })).status, 400);
 
-  // Make an Image: charged a fixed price (4 tiles x $0.0000528 + 4 steps x $0.0001056, x 1.5).
+  // Make an Image: GPT Image 2, charged for the tokens OpenAI reports
+  // (14 x $5/M + 196 x $30/M, x 1.5 = $0.008925).
   let before = await billing.balance(1);
   res = await run('make-an-image', { input: 'A fox in the snow', instructions: 'watercolor' });
   assert.equal(res.status, 200);
   assert.equal((await res.json()).text, '/9j/picture');
-  assert.deepEqual(ai.calls.at(-1).input, { prompt: 'A fox in the snow. watercolor', steps: 4 });
-  assert.equal(before - await billing.balance(1), 951);
+  assert.deepEqual(ai.images.calls.at(-1), { model: 'gpt-image-2', prompt: 'A fox in the snow. watercolor', size: '1024x1024', quality: 'low' });
+  assert.equal(before - await billing.balance(1), 8925);
   assert.equal((await run('make-an-image', { input: ' ' })).status, 400);
 
   // Transcribe Audio: the transcript is the answer, billed for the audio only.

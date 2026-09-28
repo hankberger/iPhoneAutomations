@@ -83,15 +83,32 @@ export const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 const MIN_AUDIO_BYTES_PER_MINUTE = 50_000;
 export const audioMicros = (minutes) => Math.ceil(minutes * AUDIO_MODELS[AUDIO_MODEL].perMinute * markup() * MICROS);
 
-// Text to image, billed per 512x512 tile of output and per diffusion step, times the markup.
+// Text to image through OpenAI, billed by the tokens OpenAI reports (USD per million: prompt text
+// in, image out) times the markup. Low quality at 1024x1024 comes out near 200 image tokens.
 export const IMAGE_MODELS = {
-  '@cf/black-forest-labs/flux-1-schnell': { label: 'FLUX.1 schnell', perTile: 0.0000528, perStep: 0.0001056, tiles: 4, steps: 4 },
+  'gpt-image-2': { label: 'GPT Image 2', textInput: 5.0, imageOutput: 30.0, size: '1024x1024', quality: 'low', typicalTokens: [20, 200], maxOutputTokens: 800 },
 };
 const MAX_IMAGE_PROMPT = 2048;
-export const imageMicros = (model) => {
+export const imageMicros = (model, inputTokens, outputTokens) => {
   const m = IMAGE_MODELS[model];
-  return Math.ceil((m.tiles * m.perTile + m.steps * m.perStep) * markup() * MICROS);
+  return Math.ceil((inputTokens * m.textInput + outputTokens * m.imageOutput) * markup());
 };
+
+// OpenAI's image API, with the same run(input) -> { image, usage } shape the tests fake.
+export function openaiImages(apiKey, fetchImpl = globalThis.fetch) {
+  return {
+    async run(input) {
+      const res = await fetchImpl('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...input, output_format: 'jpeg', n: 1 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error?.message ?? `OpenAI returned ${res.status}`);
+      return { image: data.data?.[0]?.b64_json, usage: data.usage };
+    },
+  };
+}
 
 // Pick a Category answers with one of the listed choices, whatever the model wrote around it.
 export function matchChoice(answer, choices) {
@@ -128,7 +145,7 @@ export function restAi(accountId, apiToken, fetchImpl = globalThis.fetch) {
 
 // `ai` is the Workers AI binding (env.AI). Calls bill to this Cloudflare account and
 // no API token is involved.
-export function createInference(billing, { ai } = {}) {
+export function createInference(billing, { ai, images } = {}) {
   const enabled = Boolean(ai);
 
   // Reserves the worst case, calls Workers AI, then charges actual usage and refunds the rest.
@@ -235,31 +252,39 @@ export function createInference(billing, { ai } = {}) {
     return { status: 200, json: { ...out.json, text: clean } };
   }
 
-  // Make an Image: a fixed-size picture has a fixed price, so it is charged up front and
-  // refunded if the model fails. The JPEG comes back base64 in `text`.
+  // Make an Image: reserves for the largest picture the model makes at this size and quality,
+  // then charges the tokens OpenAI reports. The JPEG comes back base64 in `text`.
   async function makeImage(user, automation, body) {
-    if (!enabled) return { status: 503, json: { error: 'Inference is not configured on this server.' } };
+    if (!images) return { status: 503, json: { error: 'Image generation is not configured on this server.' } };
     const prompt = [body.input, body.instructions].filter((v) => typeof v === 'string' && v.trim()).join('. ').trim();
     if (!prompt) return { status: 400, json: { error: 'Describe the picture you want, then run the shortcut again.' } };
     if (prompt.length > MAX_IMAGE_PROMPT) return { status: 413, json: { error: 'That description is too long. Keep it under 2,000 characters.' } };
     const model = automation.model;
-    const cost = imageMicros(model);
-    if (!(await billing.reserve(user.id, cost))) {
-      return { status: 402, json: { error: `Not enough credit. An image costs ${formatUsd(cost, 4)}; top up at /account.`, balance_usd: (await billing.balance(user.id)) / MICROS } };
+    const m = IMAGE_MODELS[model];
+    // A token is never shorter than one character, so prompt length bounds the text tokens.
+    const reserved = imageMicros(model, prompt.length, m.maxOutputTokens);
+    if (!(await billing.reserve(user.id, reserved))) {
+      return { status: 402, json: { error: `Not enough credit. An image can cost up to ${formatUsd(reserved, 4)}; top up at /account.`, balance_usd: (await billing.balance(user.id)) / MICROS } };
     }
     let result;
     try {
-      result = (await ai.run(model, { prompt, steps: IMAGE_MODELS[model].steps })) ?? {};
+      result = (await images.run({ model, prompt, size: m.size, quality: m.quality })) ?? {};
     } catch (err) {
-      await billing.settle(user.id, cost, 0, {});
-      return { status: 502, json: { error: 'Model provider rejected the request.', errors: [{ message: String(err?.message ?? err) }] } };
+      await billing.settle(user.id, reserved, 0, {});
+      const message = String(err?.message ?? err);
+      // OpenAI refuses some prompts under its content policy; that is the person's to fix.
+      if (/safety|policy|moderation/i.test(message)) return { status: 400, json: { error: 'That picture isn’t allowed. Try describing something else.' } };
+      return { status: 502, json: { error: 'Model provider rejected the request.', errors: [{ message }] } };
     }
     if (typeof result.image !== 'string' || !result.image) {
-      await billing.settle(user.id, cost, 0, {});
-      return { status: 422, json: { error: 'Couldn’t make that picture. Try describing it differently.' } };
+      await billing.settle(user.id, reserved, 0, {});
+      return { status: 502, json: { error: 'Model provider rejected the request.' } };
     }
-    await billing.settle(user.id, cost, cost, { description: `${IMAGE_MODELS[model].label}: 1 image`, model, input_tokens: 0, output_tokens: 0 });
-    return { status: 200, json: { text: result.image, model, cost_usd: cost / MICROS, balance_usd: (await billing.balance(user.id)) / MICROS } };
+    const inputTokens = result.usage?.input_tokens ?? Math.ceil(prompt.length / 4);
+    const outputTokens = result.usage?.output_tokens ?? m.maxOutputTokens;
+    const actual = Math.min(imageMicros(model, inputTokens, outputTokens), reserved);
+    await billing.settle(user.id, reserved, actual, { description: `${m.label}: 1 image`, model, input_tokens: inputTokens, output_tokens: outputTokens });
+    return { status: 200, json: { text: result.image, model, cost_usd: actual / MICROS, balance_usd: (await billing.balance(user.id)) / MICROS } };
   }
 
   // Reserves for the longest recording the file could hold, transcribes, then charges the

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createAuth, validateCredentials, rateLimiter, safeEqual, SESSION_COOKIE } from './auth.js';
 import { createBilling } from './billing.js';
-import { createInference, restAi, MAX_AUDIO_BYTES } from './inference.js';
+import { createInference, restAi, openaiImages, MAX_AUDIO_BYTES } from './inference.js';
 import { oauthProviders, startFlow, finishFlow } from './oauth.js';
 import { findAutomation, CATEGORIES } from './catalog.js';
 import { MICROS } from './billing.js';
@@ -46,6 +46,8 @@ app.use(async (c, next) => {
     appUrl, auth, billing,
     inference: createInference(billing, {
       ai: c.env.AI ?? (c.env.CLOUDFLARE_API_TOKEN ? restAi(c.env.CLOUDFLARE_ACCOUNT_ID, c.env.CLOUDFLARE_API_TOKEN) : null),
+      // IMAGES lets tests swap in a fake; production uses the OPENAI_API_KEY secret.
+      images: c.env.IMAGES ?? (c.env.OPENAI_API_KEY ? openaiImages(c.env.OPENAI_API_KEY) : null),
     }),
     oauth: oauthProviders(c.env),
     starterMicros,
