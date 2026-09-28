@@ -183,7 +183,7 @@ test('a new Google account gets starter credit once, and the Get flow lands on t
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('cache-control'), 'no-store');
   const html = await res.text();
-  assert.match(html, /shortcuts:\/\/import-shortcut\?url=http%3A%2F%2Flocalhost%2Fshortcuts%2Fsummarize-anything\.shortcut&amp;name=Summarize%20This/);
+  assert.match(html, /id="add" href="http:\/\/localhost\/download\/summarize-anything"/);
   assert.match(html, /data-key="aa_live_/);
   assert.match(html, /\$0\.25 of credit/);
 

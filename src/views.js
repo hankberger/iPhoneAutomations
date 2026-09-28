@@ -206,8 +206,11 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
   });
 }
 
+// iOS only imports straight into Shortcuts from an iCloud share link (shortcuts://import-shortcut
+// refuses any other URL). Until an automation has one, the signed file is downloaded and opened.
 export function install({ user, a, key, balance, fileUrl }) {
-  const importUrl = `shortcuts://import-shortcut?url=${encodeURIComponent(fileUrl)}&name=${encodeURIComponent(a.name)}`;
+  const icloud = Boolean(a.icloudUrl);
+  const href = icloud ? a.icloudUrl : fileUrl;
   const runs = a.typicalCost > 0 ? Math.floor(balance / MICROS / a.typicalCost) : 0;
   return layout({
     title: `Add ${a.name}`,
@@ -218,19 +221,20 @@ export function install({ user, a, key, balance, fileUrl }) {
   <div class="install-card c-${a.color}">
     <span class="big-ic">${icon(a.icon)}</span>
     <h1>Add ${e(a.name)}</h1>
-    <p class="muted">One tap copies your key and opens Shortcuts. When it asks for the key, paste it and tap Add Shortcut.</p>
+    <p class="muted">${icloud ? 'One tap copies your key and opens Shortcuts.' : 'One tap copies your key and downloads the shortcut. Open the download and Shortcuts takes over.'} When it asks for the key, paste it and tap Add Shortcut.</p>
     <div class="keybox">
       <span class="small muted">Your key for this shortcut</span>
       <code id="key">${e(key)}</code>
     </div>
-    <a class="btn btn-lg btn-block btn-get" id="add" href="${e(importUrl)}" data-key="${e(key)}">${icon('copy')}<span>Copy key and open Shortcuts</span></a>
-    <p class="small muted center" id="add-status" role="status">Not opening? <a href="${e(fileUrl)}">Download the shortcut</a> instead.</p>
+    <a class="btn btn-lg btn-block btn-get" id="add" href="${e(href)}" data-key="${e(key)}" data-going="${icloud ? 'Key copied. Opening Shortcuts…' : 'Key copied. Downloading…'}">${icon('copy')}<span>${icloud ? 'Copy key and open Shortcuts' : 'Copy key and download'}</span></a>
+    <p class="small muted center" id="add-status" role="status">${icloud ? `Not opening? <a href="${e(fileUrl)}">Download the shortcut</a> instead.` : 'Safari asks to download it: tap Download.'}</p>
   </div>
 
   <ol class="install-steps">
-    <li><b>1</b><div><h3>Paste when asked</h3><p>Shortcuts shows “Set Up This Shortcut” with a box for your key. Tap it, paste, then tap <strong>Add Shortcut</strong>.</p></div></li>
-    <li><b>2</b><div><h3>Run it</h3><p>${e(a.runTip)}</p></div></li>
-    <li><b>3</b><div><h3>Keep it topped up</h3><p>${balance > 0 ? `You have ${formatUsd(balance)} of credit, enough for about ${runs.toLocaleString('en-US')} runs of this shortcut.` : 'Your balance is empty, so add a little credit before the first run.'} <a href="/account#balance">${balance > 0 ? 'See your balance' : 'Top up'}</a></p></div></li>
+    ${icloud ? '' : `<li><b>1</b><div><h3>Open the download</h3><p>Tap the download arrow in Safari’s address bar, then tap <strong>${e(a.name)}</strong>. It opens in Shortcuts.</p></div></li>`}
+    <li><b>${icloud ? 1 : 2}</b><div><h3>Paste when asked</h3><p>Shortcuts shows the shortcut with a box for your key. Tap it, paste, then tap <strong>Add Shortcut</strong>.</p></div></li>
+    <li><b>${icloud ? 2 : 3}</b><div><h3>Run it</h3><p>${e(a.runTip)}</p></div></li>
+    <li><b>${icloud ? 3 : 4}</b><div><h3>Keep it topped up</h3><p>${balance > 0 ? `You have ${formatUsd(balance)} of credit, enough for about ${runs.toLocaleString('en-US')} runs of this shortcut.` : 'Your balance is empty, so add a little credit before the first run.'} <a href="/account#balance">${balance > 0 ? 'See your balance' : 'Top up'}</a></p></div></li>
   </ol>
   <p class="small muted center desktop-only">On a computer? Open iphoneadvanced.com on your iPhone and tap Get there instead.</p>
 </section>
