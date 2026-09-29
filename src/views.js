@@ -74,6 +74,7 @@ export function layout({ title, user, body, active = '' }) {
 <footer class="site-footer">
   <div class="wrap row">
     <a class="brand small" href="/">${LOGO}<span>Advanced Automations</span></a>
+    <nav class="footer-links small"><a href="/pricing">Pricing</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a></nav>
     <span class="muted small">© ${new Date().getFullYear()} · iphoneadvanced.com</span>
   </div>
 </footer>
@@ -317,6 +318,7 @@ export function authPage({ mode, error, email = '', next = '', providers = [], s
     <label>Email<input name="email" type="email" autocomplete="email" required value="${e(email)}"></label>
     <label>Password<input name="password" type="password" autocomplete="${isLogin ? 'current-password' : 'new-password'}" minlength="10" required></label>
     <button class="btn btn-lg btn-block" type="submit">${isLogin ? 'Log in' : 'Create account'}</button>
+    ${isLogin ? '' : '<p class="small muted center">By creating an account you agree to our <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.</p>'}
     <p class="small muted center">${isLogin ? `New here? <a href="/signup${e(nextQuery)}">Create an account</a>` : `Have an account? <a href="/login${e(nextQuery)}">Log in</a>`}</p>
   </form>
 </section>`,
