@@ -4,3 +4,7 @@ node_modules/
 .wrangler/
 data/*.db*
 design/node_modules/
+
+# Xcode
+xcuserdata/
+*.xcuserstate

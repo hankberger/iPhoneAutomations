@@ -10,7 +10,8 @@
     "db:migrate:remote": "wrangler d1 migrations apply advanced-automations --remote",
     "mockups": "node --env-file-if-exists=.env scripts/generate-mockups.mjs",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
-    "shortcuts": "node scripts/build-shortcuts.mjs"
+    "shortcuts": "node scripts/build-shortcuts.mjs",
+    "ios:catalog": "node scripts/ios-catalog.mjs"
   },
   "license": "ISC",
   "dependencies": {

@@ -329,3 +329,44 @@ test('terms and privacy are linked from every page footer and the signup form', 
   assert.match(home, /href="\/privacy"/);
   assert.match(await (await req('/signup')).text(), /you agree to our <a href="\/terms">Terms<\/a>/);
 });
+
+test('iPhone app: catalog, connect handoff and install keys', async () => {
+  const { req, form } = await boot();
+  let res = await req('/api/v1/catalog');
+  const catalog = await res.json();
+  assert.equal(res.status, 200);
+  assert.ok(catalog.categories.includes('Building Blocks'));
+  const askAi = catalog.automations.find((a) => a.slug === 'ask-ai');
+  assert.equal(askAi.block, true);
+  assert.equal(askAi.prompt, undefined, 'prompts stay on the server');
+  assert.equal(askAi.system, undefined);
+
+  const state = 'abcdefghijklmnop1234';
+  res = await req(`/app/connect?state=${state}`);
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get('location'), `/login?next=${encodeURIComponent(`/app/connect?state=${state}`)}`);
+
+  await form('/signup', { email: 'app@b.co', password: 'correct horse battery' });
+  assert.equal((await req('/app/connect?state=short')).status, 404);
+  const html = await (await req(`/app/connect?state=${state}`)).text();
+  const csrf = html.match(/name="csrf" value="([^"]+)"/)[1];
+  assert.equal((await form('/app/connect', { csrf: 'wrong', state })).status, 403);
+  res = await form('/app/connect', { csrf, state });
+  assert.equal(res.status, 303);
+  const back = new URL(res.headers.get('location'));
+  assert.equal(`${back.protocol}//${back.host}`, 'iphoneadvanced://connect');
+  assert.equal(back.searchParams.get('state'), state);
+  const key = back.searchParams.get('key');
+  assert.match(key, /^aa_live_/);
+  assert.match(res.headers.get('content-security-policy'), /form-action 'self' iphoneadvanced:/);
+  assert.match((await req('/account')).headers.get('content-security-policy'), /form-action 'self' https:\/\/checkout/);
+
+  const mint = (body, k = key) => req('/api/v1/keys', { method: 'POST', headers: { authorization: `Bearer ${k}` }, body: JSON.stringify(body) });
+  assert.equal((await mint({ name: 'Draft a Reply' }, 'aa_live_nope')).status, 401);
+  res = await mint({ name: 'Draft a Reply' });
+  assert.equal(res.status, 201);
+  assert.match((await res.json()).key, /^aa_live_/);
+  const account = await (await req('/account')).text();
+  assert.match(account, /iPhone app/);
+  assert.match(account, /Draft a Reply/);
+});

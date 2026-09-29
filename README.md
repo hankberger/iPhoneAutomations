@@ -108,6 +108,17 @@ iOS only imports straight into Shortcuts from an iCloud share link: `shortcuts:/
 
 Installed shortcuts call `POST /api/v1/run/<slug>` with `{ "input": "...", "choice": "...", "image": "<base64 JPEG>" }` (choice and image only where the automation uses them). Audio automations such as Summarize My Meeting Notes post the recording itself as the body instead; it is transcribed with Whisper, billed per minute, and the notes come back with the transcript underneath. The prompt and model come from the catalog, so they can change without anyone reinstalling. Errors return `{ error, action_url }`: the shortcut shows the message and offers to open the link (top up, or add the shortcut again with a fresh key). Shortcuts point at `https://iphoneadvanced.com` unless built with `SHORTCUT_API_BASE`.
 
+## iPhone app
+
+`ios/` is a SwiftUI app (iOS 17+) that lists the same automations as the site and adds the six building blocks to the Shortcuts app as native actions: Ask AI, Ask AI About an Image, Transcribe Audio, Pull Out Details, Pick a Category and Make an Image. They are App Intents in `ios/AdvancedAutomations/Intents/`, and each calls `POST /api/v1/run/<slug>` with the app's own key, the same request the Run Shortcut versions make, so prompts and models still change on the server without an app update.
+
+- **Sign-in:** the app opens `/app/connect` in an `ASWebAuthenticationSession`. The person signs in on the site as usual (email, Google or Apple), taps Connect, and a new key named "iPhone app" comes back through `iphoneadvanced://connect`. The key lives in the Keychain.
+- **Catalog:** fetched from `GET /api/v1/catalog`, cached, with `ios/AdvancedAutomations/Resources/catalog.json` bundled for first launch. Run `npm run ios:catalog` after changing `src/catalog.js`.
+- **Getting a shortcut:** with an `icloudUrl`, the app mints a key through `POST /api/v1/keys`, copies it and opens the iCloud link. Without one, it opens the install page in Safari.
+- **Credit:** balance comes from `/api/v1/balance`; top-ups open the account page in Safari.
+
+Open `ios/AdvancedAutomations.xcodeproj`, pick your team under Signing & Capabilities, and run. To point it at `npm run dev:local`, change `API.baseURL` in `Services/API.swift`. The Xcode project uses folder-synchronized groups, so new files under `ios/AdvancedAutomations/` are picked up without editing the project.
+
 ## Mockups with GPT-Image-2
 
 ```bash

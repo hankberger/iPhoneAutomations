@@ -4,7 +4,7 @@ import { createAuth, validateCredentials, rateLimiter, safeEqual, SESSION_COOKIE
 import { createBilling } from './billing.js';
 import { createInference, restAi, aiGateway, MAX_AUDIO_BYTES } from './inference.js';
 import { oauthProviders, startFlow, finishFlow } from './oauth.js';
-import { findAutomation, CATEGORIES } from './catalog.js';
+import { findAutomation, CATEGORIES, publicCatalog } from './catalog.js';
 import { MICROS } from './billing.js';
 import * as views from './views.js';
 import * as legal from './legal.js';
@@ -58,7 +58,8 @@ app.use(async (c, next) => {
     secure: appUrl.startsWith('https://'),
   });
   await next();
-  for (const [k, v] of Object.entries(SECURITY_HEADERS)) c.header(k, v);
+  // A route may set its own CSP (see /app/connect); the rest get the defaults.
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) if (!c.res.headers.has(k)) c.header(k, v);
 });
 
 // Reads a form body with a size cap. Returns null when it is too large.
@@ -158,6 +159,17 @@ app.post('/api/v1/run/:slug', async (c) => {
   if (status === 402) return c.json({ ...json, error: 'You’re out of credit. Tap OK to top up. Most runs cost under a cent.', action_url: `${appUrl}/account#balance` }, 402);
   if (status !== 200) return c.json({ ...json, error: json.error === 'Model provider rejected the request.' ? 'The AI couldn’t answer that one. Please try again in a moment.' : json.error, action_url: page }, status);
   return c.json(json);
+});
+// Mints a key for a shortcut the iPhone app is about to install, with the app's own key.
+app.post('/api/v1/keys', api(async (c, user, body) => {
+  const name = String(body.name || '').trim().slice(0, 60) || 'My iPhone';
+  return { status: 201, json: { key: await c.get('ctx').auth.createApiKey(user.id, name) } };
+}));
+
+// The catalog for the iPhone app, so it lists the same shortcuts as the site without an update.
+app.get('/api/v1/catalog', (c) => {
+  c.header('Cache-Control', 'public, max-age=300');
+  return c.json(publicCatalog());
 });
 app.get('/api/v1/balance', api(async (c, user) => ({ status: 200, json: { balance_usd: (await c.get('ctx').billing.balance(user.id)) / 1e6 } })));
 
@@ -274,6 +286,26 @@ app.on(['GET', 'POST'], '/auth/:provider/callback', async (c) => {
   await setSession(c, result.userId);
   if (result.linked) return c.redirect(`/account?linked=${id}${result.passwordDisabled ? '&password=off' : ''}`, 303);
   return c.redirect(safeNext(flow.next), 303);
+});
+
+// Signs the iPhone app in. The app opens this page in an ASWebAuthenticationSession, so the
+// person signs in on the site as usual, confirms, and the new key goes back to the app through
+// its URL scheme. `state` is the app's own nonce, echoed back so it can match the reply.
+const APP_CALLBACK = 'iphoneadvanced://connect';
+const appState = (s) => (typeof s === 'string' && /^[\w-]{16,64}$/.test(s) ? s : null);
+app.get('/app/connect', requireUser, (c) => {
+  const state = appState(c.req.query('state'));
+  if (!state) return c.html(views.notFound({ user: c.get('user') }), 404);
+  c.header('Cache-Control', 'no-store');
+  return c.html(views.appConnect({ user: c.get('user'), state }));
+});
+app.post('/app/connect', requireUser, async (c) => {
+  const state = appState(c.get('form').state);
+  if (!state) return c.text('That sign-in link expired. Go back to the app and try again.', 400);
+  const key = await c.get('ctx').auth.createApiKey(c.get('user').id, 'iPhone app');
+  // form-action also covers where the form redirects, so let this one reach the app.
+  c.header('Content-Security-Policy', SECURITY_HEADERS['Content-Security-Policy'].replace("form-action 'self'", "form-action 'self' iphoneadvanced:"));
+  return c.redirect(`${APP_CALLBACK}?${new URLSearchParams({ key, state })}`, 303);
 });
 
 app.post('/logout', requireUser, async (c) => {
