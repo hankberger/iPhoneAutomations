@@ -365,7 +365,9 @@ test('iPhone app: catalog, connect handoff and install keys', async () => {
   assert.equal((await mint({ name: 'Draft a Reply' }, 'aa_live_nope')).status, 401);
   res = await mint({ name: 'Draft a Reply' });
   assert.equal(res.status, 201);
-  assert.match((await res.json()).key, /^aa_live_/);
+  const minted = (await res.json()).key;
+  assert.match(minted, /^aa_live_/);
+  assert.equal((await mint({ name: 'Again' }, minted)).status, 403, 'shortcut keys cannot mint more keys');
   const account = await (await req('/account')).text();
   assert.match(account, /iPhone app/);
   assert.match(account, /Draft a Reply/);

@@ -266,6 +266,7 @@ export function appConnect({ user, state }) {
     <span class="big-ic">${icon('key')}</span>
     <h1>Connect the iPhone app</h1>
     <p class="muted">Signed in as ${e(user.email)}. The app gets its own key, which it uses for the AI actions it adds to Shortcuts. Revoke it any time from your account.</p>
+    <p class="muted">Only tap Connect if you started this from the Advanced Automations app.</p>
     <form method="post" action="/app/connect">
       <input type="hidden" name="csrf" value="${e(user.csrf)}">
       <input type="hidden" name="state" value="${e(state)}">

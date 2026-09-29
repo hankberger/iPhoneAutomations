@@ -161,7 +161,9 @@ app.post('/api/v1/run/:slug', async (c) => {
   return c.json(json);
 });
 // Mints a key for a shortcut the iPhone app is about to install, with the app's own key.
+// Keys from shortcuts can't mint: they get shared inside .shortcut files.
 app.post('/api/v1/keys', api(async (c, user, body) => {
+  if (!user.can_mint) return { status: 403, json: { error: 'Only the iPhone app’s key can create keys.' } };
   const name = String(body.name || '').trim().slice(0, 60) || 'My iPhone';
   return { status: 201, json: { key: await c.get('ctx').auth.createApiKey(user.id, name) } };
 }));
@@ -302,7 +304,7 @@ app.get('/app/connect', requireUser, (c) => {
 app.post('/app/connect', requireUser, async (c) => {
   const state = appState(c.get('form').state);
   if (!state) return c.text('That sign-in link expired. Go back to the app and try again.', 400);
-  const key = await c.get('ctx').auth.createApiKey(c.get('user').id, 'iPhone app');
+  const key = await c.get('ctx').auth.createApiKey(c.get('user').id, 'iPhone app', { canMint: true });
   // form-action also covers where the form redirects, so let this one reach the app.
   c.header('Content-Security-Policy', SECURITY_HEADERS['Content-Security-Policy'].replace("form-action 'self'", "form-action 'self' iphoneadvanced:"));
   return c.redirect(`${APP_CALLBACK}?${new URLSearchParams({ key, state })}`, 303);

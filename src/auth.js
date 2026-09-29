@@ -68,10 +68,10 @@ export function createAuth(db, { starterMicros = 0 } = {}) {
                          FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`),
     deleteSession: db.prepare('DELETE FROM sessions WHERE token_hash = ?'),
     purge: db.prepare('DELETE FROM sessions WHERE expires_at < ?'),
-    keyLookup: db.prepare(`SELECT k.id AS key_id, u.id, u.email, u.balance_micros FROM api_keys k
+    keyLookup: db.prepare(`SELECT k.id AS key_id, k.can_mint, u.id, u.email, u.balance_micros FROM api_keys k
                            JOIN users u ON u.id = k.user_id WHERE k.key_hash = ? AND k.revoked_at IS NULL`),
     touchKey: db.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?'),
-    insertKey: db.prepare('INSERT INTO api_keys (user_id, key_hash, prefix, name, created_at) VALUES (?, ?, ?, ?, ?)'),
+    insertKey: db.prepare('INSERT INTO api_keys (user_id, key_hash, prefix, name, created_at, can_mint) VALUES (?, ?, ?, ?, ?, ?)'),
     listKeys: db.prepare('SELECT id, prefix, name, created_at, last_used_at FROM api_keys WHERE user_id = ? AND revoked_at IS NULL ORDER BY id DESC'),
     revokeKey: db.prepare('UPDATE api_keys SET revoked_at = ? WHERE id = ? AND user_id = ?'),
     identity: db.prepare('SELECT user_id FROM identities WHERE provider = ? AND subject = ?'),
@@ -157,9 +157,10 @@ export function createAuth(db, { starterMicros = 0 } = {}) {
 
   const endSession = async (t) => t && q.deleteSession.bind(await sha256(t)).run();
 
-  async function createApiKey(userId, name) {
+  // canMint lets the key call POST /api/v1/keys. Only the iPhone app's own key gets it.
+  async function createApiKey(userId, name, { canMint = false } = {}) {
     const secret = `aa_live_${token(24)}`;
-    await q.insertKey.bind(userId, await sha256(secret), secret.slice(0, 12), name, Date.now()).run();
+    await q.insertKey.bind(userId, await sha256(secret), secret.slice(0, 12), name, Date.now(), canMint ? 1 : 0).run();
     return secret;
   }
 
