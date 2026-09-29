@@ -53,7 +53,7 @@ test('plain http redirects to https', async () => {
 
 test('pages render', async () => {
   const { req } = await boot();
-  for (const p of ['/', '/automations', '/automations/reply-drafter', '/automations/tone-shifter', '/pricing', '/login', '/signup']) {
+  for (const p of ['/', '/automations', '/automations/reply-drafter', '/automations/tone-shifter', '/pricing', '/terms', '/privacy', '/login', '/signup']) {
     assert.equal((await req(p)).status, 200, p);
   }
   assert.equal((await req('/automations/nope')).status, 404);
@@ -324,4 +324,14 @@ test('install page downloads the signed file under the shortcut’s name, or ope
   } finally {
     delete a.icloudUrl;
   }
+});
+
+test('terms and privacy are linked from every page footer and the signup form', async () => {
+  const { req } = await boot();
+  assert.match(await (await req('/terms')).text(), /<h1>Terms of Service<\/h1>/);
+  assert.match(await (await req('/privacy')).text(), /do not store the content of your requests/);
+  const home = await (await req('/')).text();
+  assert.match(home, /href="\/terms"/);
+  assert.match(home, /href="\/privacy"/);
+  assert.match(await (await req('/signup')).text(), /you agree to our <a href="\/terms">Terms<\/a>/);
 });

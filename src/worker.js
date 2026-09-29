@@ -7,6 +7,7 @@ import { oauthProviders, startFlow, finishFlow } from './oauth.js';
 import { findAutomation, CATEGORIES } from './catalog.js';
 import { MICROS } from './billing.js';
 import * as views from './views.js';
+import * as legal from './legal.js';
 
 const FORM_LIMIT = 20 * 1024;
 const JSON_LIMIT = 1024 * 1024;
@@ -204,6 +205,8 @@ app.get('/download/:slug', async (c) => {
   });
 });
 app.get('/pricing', (c) => c.html(views.pricing({ user: c.get('user') })));
+app.get('/terms', (c) => c.html(legal.terms({ user: c.get('user') })));
+app.get('/privacy', (c) => c.html(legal.privacy({ user: c.get('user') })));
 
 // Auth
 for (const mode of ['login', 'signup']) {
