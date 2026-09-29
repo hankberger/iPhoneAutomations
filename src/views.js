@@ -256,6 +256,27 @@ export function install({ user, a, key, balance, fileUrl }) {
   });
 }
 
+export function appConnect({ user, state }) {
+  return layout({
+    title: 'Connect the app',
+    user,
+    body: `
+<section class="wrap install">
+  <div class="install-card c-violet">
+    <span class="big-ic">${icon('key')}</span>
+    <h1>Connect the iPhone app</h1>
+    <p class="muted">Signed in as ${e(user.email)}. The app gets its own key, which it uses for the AI actions it adds to Shortcuts. Revoke it any time from your account.</p>
+    <p class="muted">Only tap Connect if you started this from the Advanced Automations app.</p>
+    <form method="post" action="/app/connect">
+      <input type="hidden" name="csrf" value="${e(user.csrf)}">
+      <input type="hidden" name="state" value="${e(state)}">
+      <button class="btn btn-lg btn-block" type="submit">Connect</button>
+    </form>
+  </div>
+</section>`,
+  });
+}
+
 export function pricing({ user }) {
   const rows = Object.entries(MODELS).map(([id, m]) => {
     const p = retailPrice(id);

@@ -359,3 +359,10 @@ for (const a of AUTOMATIONS) {
 }
 
 export const findAutomation = (slug) => AUTOMATIONS.find((a) => a.slug === slug);
+
+// What the iPhone app shows. Prompts, models and system messages stay on the server.
+const PUBLIC_FIELDS = ['slug', 'name', 'tagline', 'category', 'icon', 'color', 'trigger', 'runTip', 'inside', 'typicalCost', 'icloudUrl', 'block'];
+export const publicCatalog = () => ({
+  categories: CATEGORIES,
+  automations: AUTOMATIONS.map((a) => Object.fromEntries(PUBLIC_FIELDS.filter((k) => a[k] !== undefined).map((k) => [k, a[k]]))),
+});

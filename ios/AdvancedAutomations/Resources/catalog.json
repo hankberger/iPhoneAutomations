@@ -1,0 +1,484 @@
+{
+  "categories": [
+    "Building Blocks",
+    "Writing",
+    "Productivity",
+    "Capture",
+    "Everyday"
+  ],
+  "automations": [
+    {
+      "slug": "ask-ai",
+      "name": "Ask AI",
+      "tagline": "Text in, answer out. The block behind \"summarize this\", \"draft a reply\" and anything else you can put in words.",
+      "category": "Building Blocks",
+      "icon": "spark",
+      "color": "violet",
+      "trigger": "Run Shortcut",
+      "runTip": "Add Run Shortcut to your own shortcut and pick this one. Pass it one item, or a List with what to work on first and your instructions last. Example: Get Clipboard, then a List of Clipboard and \"Summarize in three lines\", then Run Shortcut Ask AI.",
+      "inside": [
+        {
+          "action": "Get Text from Input",
+          "detail": "Or asks you, when run on its own."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends what you passed in, and your instructions, to our API with your key."
+        },
+        {
+          "action": "Stop and Output",
+          "detail": "Hands the answer back to your shortcut. Run on its own, it shows it."
+        }
+      ],
+      "typicalCost": 0.001109,
+      "block": true
+    },
+    {
+      "slug": "ask-about-image",
+      "name": "Ask AI About an Image",
+      "tagline": "A photo or screenshot plus a question, answered in words.",
+      "category": "Building Blocks",
+      "icon": "eye",
+      "color": "teal",
+      "trigger": "Run Shortcut",
+      "runTip": "Add Run Shortcut to your own shortcut and pick this one. Pass it one item, or a List with what to work on first and your instructions last. Example: Take Screenshot, then a List of Screenshot and \"What app is this and what does the error mean?\". With no question, it describes the image.",
+      "inside": [
+        {
+          "action": "Resize Image",
+          "detail": "A 1024 pixel JPEG, so every run costs about the same."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends what you passed in, and your instructions, to our API with your key."
+        },
+        {
+          "action": "Stop and Output",
+          "detail": "Hands the answer back to your shortcut. Run on its own, it shows it."
+        }
+      ],
+      "typicalCost": 0.001893,
+      "block": true
+    },
+    {
+      "slug": "transcribe-audio",
+      "name": "Transcribe Audio",
+      "tagline": "A recording or voice memo in, the words out.",
+      "category": "Building Blocks",
+      "icon": "mic",
+      "color": "red",
+      "trigger": "Run Shortcut",
+      "runTip": "Add Run Shortcut to your own shortcut, pick this one and pass it a recording or audio file. Pair it with Ask AI to summarize what was said. Run on its own, it records until you tap stop.",
+      "inside": [
+        {
+          "action": "Record Audio",
+          "detail": "Only when run on its own."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the recording to our API with your key."
+        },
+        {
+          "action": "Stop and Output",
+          "detail": "Hands the answer back to your shortcut. Run on its own, it shows it."
+        }
+      ],
+      "typicalCost": 0.003826,
+      "block": true
+    },
+    {
+      "slug": "pull-out-details",
+      "name": "Pull Out Details",
+      "tagline": "Name the details you want and get them back as a Dictionary, from text or a photo.",
+      "category": "Building Blocks",
+      "icon": "list",
+      "color": "orange",
+      "trigger": "Run Shortcut",
+      "runTip": "Add Run Shortcut to your own shortcut and pick this one. Pass it one item, or a List with what to work on first and your instructions last. Example: a List of a receipt photo and \"total, date, store\", then Get Dictionary Value \"total\".",
+      "inside": [
+        {
+          "action": "Resize Image",
+          "detail": "Only for a photo or screenshot."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends what you passed in, and your instructions, to our API with your key."
+        },
+        {
+          "action": "Get Dictionary",
+          "detail": "Then Stop and Output hands the Dictionary back to your shortcut."
+        }
+      ],
+      "typicalCost": 0.000714,
+      "block": true
+    },
+    {
+      "slug": "pick-a-category",
+      "name": "Pick a Category",
+      "tagline": "Give it text and a list of choices; it answers with exactly one, ready for an If.",
+      "category": "Building Blocks",
+      "icon": "tag",
+      "color": "blue",
+      "trigger": "Run Shortcut",
+      "runTip": "Add Run Shortcut to your own shortcut and pick this one. Pass it one item, or a List with what to work on first and your instructions last. Example: a List of an email and \"Urgent: needs action today, Needs reply, FYI\", then If Shortcut Result is Urgent.",
+      "inside": [
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends what you passed in, and your instructions, to our API with your key."
+        },
+        {
+          "action": "Stop and Output",
+          "detail": "Always one of your choices, written exactly as you gave it."
+        }
+      ],
+      "typicalCost": 0.000032,
+      "block": true
+    },
+    {
+      "slug": "make-an-image",
+      "name": "Make an Image",
+      "tagline": "Describe a picture and get a 1024 pixel image back.",
+      "category": "Building Blocks",
+      "icon": "image",
+      "color": "pink",
+      "trigger": "Run Shortcut",
+      "runTip": "Add Run Shortcut to your own shortcut, pick this one and pass it a description. Save the result to Photos or set it as your wallpaper. Run on its own, it asks what to draw.",
+      "inside": [
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends what you passed in, and your instructions, to our API with your key."
+        },
+        {
+          "action": "Base64 Decode",
+          "detail": "Turns the answer into a JPEG."
+        },
+        {
+          "action": "Stop and Output",
+          "detail": "Hands the answer back to your shortcut. Run on its own, it shows it."
+        }
+      ],
+      "typicalCost": 0.00915,
+      "block": true
+    },
+    {
+      "slug": "explain-this",
+      "name": "Explain This to Me",
+      "tagline": "Share a bill, lease, lab result or error message and get it in plain English.",
+      "category": "Everyday",
+      "icon": "bulb",
+      "color": "teal",
+      "trigger": "Share Sheet",
+      "runTip": "Share a screenshot, photo, PDF or text to it. Run it on its own to explain your latest screenshot.",
+      "inside": [
+        {
+          "action": "Extract Text from Image",
+          "detail": "For a screenshot or photo. Runs on your iPhone, so only the text is sent."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the text to our API with your key. Nothing else leaves your phone."
+        },
+        {
+          "action": "Show Result"
+        }
+      ],
+      "typicalCost": 0.001197
+    },
+    {
+      "slug": "summarize-anything",
+      "name": "Summarize This",
+      "tagline": "Share any article, email or note and get a three-line summary.",
+      "category": "Productivity",
+      "icon": "doc",
+      "color": "orange",
+      "trigger": "Share Sheet",
+      "runTip": "In Safari, Mail or Notes, tap Share and pick Summarize This. Run it on its own to summarize your clipboard.",
+      "inside": [
+        {
+          "action": "Get Text from Input",
+          "detail": "Whatever you shared, or your clipboard."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the text to our API with your key. Nothing else leaves your phone."
+        },
+        {
+          "action": "Quick Look",
+          "detail": "Shows the summary."
+        }
+      ],
+      "typicalCost": 0.00013,
+      "icloudUrl": "https://www.icloud.com/shortcuts/bab137385ec341bf8fe39c3e341c85af"
+    },
+    {
+      "slug": "reply-drafter",
+      "name": "Draft a Reply",
+      "tagline": "Copy a message, run it, and get a warm, concise reply on your clipboard.",
+      "category": "Writing",
+      "icon": "chat",
+      "color": "violet",
+      "trigger": "Back Tap or Action Button",
+      "runTip": "Copy a message, then run it. For one tap, set it as your Action Button or Back Tap (Settings, Accessibility, Touch, Back Tap).",
+      "inside": [
+        {
+          "action": "Get Clipboard"
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the text to our API with your key. Nothing else leaves your phone."
+        },
+        {
+          "action": "Copy to Clipboard",
+          "detail": "Then a notification says the reply is ready to paste."
+        }
+      ],
+      "typicalCost": 0.000639,
+      "icloudUrl": "https://www.icloud.com/shortcuts/021815833cfe459d94a1bf40bdf272e8"
+    },
+    {
+      "slug": "tone-shifter",
+      "name": "Change the Tone",
+      "tagline": "Rewrite selected text as friendlier, firmer, or more formal.",
+      "category": "Writing",
+      "icon": "wand",
+      "color": "indigo",
+      "trigger": "Share Sheet",
+      "runTip": "Select text, tap Share and pick Change the Tone. The rewrite lands on your clipboard.",
+      "inside": [
+        {
+          "action": "Get Text from Input"
+        },
+        {
+          "action": "Choose from List",
+          "detail": "Friendlier, Firmer, More formal or Shorter."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the text to our API with your key. Nothing else leaves your phone."
+        },
+        {
+          "action": "Copy to Clipboard",
+          "detail": "And shows the rewrite."
+        }
+      ],
+      "typicalCost": 0.000086
+    },
+    {
+      "slug": "voice-to-notes",
+      "name": "Turn My Voice into a Note",
+      "tagline": "Talk for a minute. Get a tidy note with action items in Apple Notes.",
+      "category": "Capture",
+      "icon": "mic",
+      "color": "green",
+      "trigger": "Action Button or Siri",
+      "runTip": "Say \"Hey Siri, Turn My Voice into a Note\", or set it as your Action Button. It stops listening when you pause.",
+      "inside": [
+        {
+          "action": "Dictate Text",
+          "detail": "Transcribed on your iPhone."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the text to our API with your key. Nothing else leaves your phone."
+        },
+        {
+          "action": "Create Note",
+          "detail": "In Apple Notes."
+        }
+      ],
+      "typicalCost": 0.001065
+    },
+    {
+      "slug": "meeting-notes",
+      "name": "Summarize My Meeting Notes",
+      "tagline": "Record a meeting or lecture and get a summary, decisions and action items in Notes.",
+      "category": "Productivity",
+      "icon": "wave",
+      "color": "red",
+      "trigger": "Action Button or Siri",
+      "runTip": "Run it when the meeting starts and tap Done when it ends. The note has the summary on top and the full transcript underneath. Up to about 45 minutes.",
+      "inside": [
+        {
+          "action": "Record Audio",
+          "detail": "Tap Done to stop."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the recording to our API with your key. Whisper transcribes it, then Llama writes the notes."
+        },
+        {
+          "action": "Create Note",
+          "detail": "In Apple Notes, with the full transcript underneath."
+        }
+      ],
+      "typicalCost": 0.026939,
+      "icloudUrl": "https://www.icloud.com/shortcuts/1509e3f1ec944e04a872b4a5ca8bc61e"
+    },
+    {
+      "slug": "snap-calories",
+      "name": "Log My Meal",
+      "tagline": "Photograph your plate. Calories, protein, carbs and fat go straight into Apple Health.",
+      "category": "Capture",
+      "icon": "apple",
+      "color": "lime",
+      "trigger": "Action Button or Home Screen",
+      "runTip": "Run it and snap your meal, or share a food photo to it. The first run asks permission to write to Health.",
+      "inside": [
+        {
+          "action": "Take Photo",
+          "detail": "Or the photo you shared."
+        },
+        {
+          "action": "Resize Image",
+          "detail": "A 1024 pixel JPEG, so every run costs about the same."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the photo to our API with your key."
+        },
+        {
+          "action": "Log Health Sample",
+          "detail": "Dietary energy, protein, carbohydrates and fat."
+        }
+      ],
+      "typicalCost": 0.00063,
+      "icloudUrl": "https://www.icloud.com/shortcuts/6527eff8f4e54a40a5b7f7ce2222579c"
+    },
+    {
+      "slug": "smart-reminders",
+      "name": "Make Reminders from This",
+      "tagline": "Share a messy list or email and get one clean reminder per task.",
+      "category": "Productivity",
+      "icon": "bell",
+      "color": "yellow",
+      "trigger": "Share Sheet",
+      "runTip": "Share an email or note, or copy a list and run it. Each task becomes its own reminder.",
+      "inside": [
+        {
+          "action": "Get Text from Input",
+          "detail": "Whatever you shared, or your clipboard."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the text to our API with your key. Nothing else leaves your phone."
+        },
+        {
+          "action": "Split Text",
+          "detail": "One line per task."
+        },
+        {
+          "action": "Add New Reminder",
+          "detail": "For each task."
+        }
+      ],
+      "typicalCost": 0.000683,
+      "icloudUrl": "https://www.icloud.com/shortcuts/4371d481e3874f8eb8989e17d5d09157"
+    },
+    {
+      "slug": "receipt-reader",
+      "name": "Log a Receipt",
+      "tagline": "Snap a receipt and log merchant, date and total to a spreadsheet.",
+      "category": "Capture",
+      "icon": "receipt",
+      "color": "pink",
+      "trigger": "Home Screen",
+      "runTip": "Add it to your Home Screen. Rows go to Receipts.csv in iCloud Drive, in the Shortcuts folder.",
+      "inside": [
+        {
+          "action": "Take Photo"
+        },
+        {
+          "action": "Extract Text from Image",
+          "detail": "Runs on your iPhone. Only the text is sent."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the text to our API with your key. Nothing else leaves your phone."
+        },
+        {
+          "action": "Append to Text File",
+          "detail": "Receipts.csv in iCloud Drive."
+        }
+      ],
+      "typicalCost": 0.000044
+    },
+    {
+      "slug": "translate-selection",
+      "name": "Translate This",
+      "tagline": "Natural translation that keeps names, tone and formatting intact.",
+      "category": "Everyday",
+      "icon": "globe",
+      "color": "sky",
+      "trigger": "Share Sheet",
+      "runTip": "Select text or share a page, tap Share and pick Translate This.",
+      "inside": [
+        {
+          "action": "Get Text from Input"
+        },
+        {
+          "action": "Choose from List",
+          "detail": "Pick the language."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the text to our API with your key. Nothing else leaves your phone."
+        },
+        {
+          "action": "Show Result"
+        }
+      ],
+      "typicalCost": 0.000194
+    },
+    {
+      "slug": "scam-check",
+      "name": "Check for a Scam",
+      "tagline": "Share a suspicious text, email or screenshot and get a straight answer with the red flags.",
+      "category": "Everyday",
+      "icon": "shield",
+      "color": "yellow",
+      "trigger": "Share Sheet",
+      "runTip": "Share the message, or a screenshot of it, from Messages, Mail or Photos. Run it on its own to check your latest screenshot.",
+      "inside": [
+        {
+          "action": "Extract Text from Image",
+          "detail": "For a screenshot. Runs on your iPhone, so only the text is sent."
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the text to our API with your key. Nothing else leaves your phone."
+        },
+        {
+          "action": "Show Result"
+        }
+      ],
+      "typicalCost": 0.000683,
+      "icloudUrl": "https://www.icloud.com/shortcuts/4573bf3182584465bd54100f328dfbc0"
+    },
+    {
+      "slug": "morning-brief",
+      "name": "Plan My Day",
+      "tagline": "A two-paragraph plan for your day from your calendar and reminders.",
+      "category": "Everyday",
+      "icon": "sun",
+      "color": "amber",
+      "trigger": "Personal Automation at 7:00",
+      "runTip": "In Shortcuts, open Automation, tap +, pick Time of Day and choose Plan My Day so it runs every morning.",
+      "inside": [
+        {
+          "action": "Get Upcoming Events"
+        },
+        {
+          "action": "Get Upcoming Reminders"
+        },
+        {
+          "action": "Ask Advanced Automations",
+          "detail": "Sends the text to our API with your key. Nothing else leaves your phone."
+        },
+        {
+          "action": "Speak Text",
+          "detail": "And shows the plan."
+        }
+      ],
+      "typicalCost": 0.00066
+    }
+  ]
+}
