@@ -1,0 +1,12 @@
+#define color blue
+#define glyph magicWand
+#define from sharesheet
+#define inputs text, richtext
+#define noinput getclipboard
+
+const input = getText(ShortcutInput)
+@tones = ["Friendlier", "Firmer", "More formal", "Shorter"]
+const choice = chooseFromList(@tones, "Rewrite it")
+// @call
+setClipboard(result)
+quicklook(result)

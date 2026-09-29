@@ -1,0 +1,23 @@
+#define color blue
+#define glyph tag
+
+// Called from another shortcut with one item, or with a List: what to work on first,
+// your instructions last.
+@content = ShortcutInput
+@instructions = ""
+const items = count(ShortcutInput)
+if items > 1 {
+    @content = getFirstItem(ShortcutInput)
+    const last = getLastItem(ShortcutInput)
+    @instructions = getText(last)
+}
+if !ShortcutInput {
+    @content = getClipboard()
+    @instructions = prompt("Which categories? For example: Work, Personal, Errands")
+}
+const input = getText(@content)
+// @call
+if !ShortcutInput {
+    quicklook(result)
+}
+output("{result}")

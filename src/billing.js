@@ -1,38 +1,42 @@
 import Stripe from 'stripe';
-import { tx } from './db.js';
 
 export const MICROS = 1_000_000;
 export const TOPUP_AMOUNTS = [5, 10, 25, 50]; // USD
 export const formatUsd = (micros, digits = 2) =>
   `$${(micros / MICROS).toFixed(digits)}`;
 
-export function createBilling(db, { stripeKey = process.env.STRIPE_SECRET_KEY, webhookSecret = process.env.STRIPE_WEBHOOK_SECRET, appUrl } = {}) {
-  const stripe = stripeKey ? new Stripe(stripeKey) : null;
+export function createBilling(db, { stripeKey, webhookSecret, appUrl } = {}) {
+  const stripe = stripeKey ? new Stripe(stripeKey, { httpClient: Stripe.createFetchHttpClient() }) : null;
   const q = {
     credit: db.prepare('UPDATE users SET balance_micros = balance_micros + ? WHERE id = ?'),
     // Only succeeds when the balance covers the debit, which makes reservations race-safe.
     debit: db.prepare('UPDATE users SET balance_micros = balance_micros - ? WHERE id = ? AND balance_micros >= ?'),
     balance: db.prepare('SELECT balance_micros FROM users WHERE id = ?'),
-    topupExists: db.prepare('SELECT 1 FROM ledger WHERE stripe_session_id = ?'),
     ledger: db.prepare(`INSERT INTO ledger (user_id, kind, amount_micros, description, stripe_session_id, model, input_tokens, output_tokens, created_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+    topupLedger: db.prepare(`INSERT INTO ledger (user_id, kind, amount_micros, description, stripe_session_id, created_at)
+                             VALUES (?, 'topup', ?, ?, ?, ?) ON CONFLICT (stripe_session_id) DO NOTHING`),
+    // changes() is the row count of the ledger insert just before it in the same batch,
+    // so a replayed session inserts nothing and credits nothing.
+    topupCredit: db.prepare('UPDATE users SET balance_micros = balance_micros + ? WHERE id = ? AND changes() = 1'),
     history: db.prepare('SELECT * FROM ledger WHERE user_id = ? ORDER BY id DESC LIMIT ?'),
     setCustomer: db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?'),
   };
 
   // Idempotent: Stripe retries webhooks and the success page may also call this.
-  function fulfillCheckout(session) {
+  async function fulfillCheckout(session) {
     if (session.payment_status !== 'paid') return false;
     const userId = Number(session.metadata?.user_id);
     const credit = Number(session.metadata?.credit_micros);
     if (!userId || !credit) return false;
-    return tx(db, () => {
-      if (q.topupExists.get(session.id)) return false;
-      q.credit.run(credit, userId);
-      q.ledger.run(userId, 'topup', credit, `Added ${formatUsd(credit)} credit`, session.id, null, null, null, Date.now());
-      if (session.customer) q.setCustomer.run(String(session.customer), userId);
-      return true;
-    });
+    // A D1 batch runs as one transaction.
+    const [inserted] = await db.batch([
+      q.topupLedger.bind(userId, credit, `Added ${formatUsd(credit)} credit`, session.id, Date.now()),
+      q.topupCredit.bind(credit, userId),
+    ]);
+    if (inserted.meta.changes !== 1) return false;
+    if (session.customer) await q.setCustomer.bind(String(session.customer), userId).run();
+    return true;
   }
 
   async function createCheckout(user, dollars) {
@@ -64,36 +68,36 @@ export function createBilling(db, { stripeKey = process.env.STRIPE_SECRET_KEY, w
     return fulfillCheckout(session);
   }
 
-  function handleWebhook(rawBody, signature) {
+  async function handleWebhook(rawBody, signature) {
     if (!stripe || !webhookSecret) throw new Error('Stripe webhook is not configured.');
-    const event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    const event = await stripe.webhooks.constructEventAsync(rawBody, signature, webhookSecret, undefined, Stripe.createSubtleCryptoProvider());
     if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
-      fulfillCheckout(event.data.object);
+      await fulfillCheckout(event.data.object);
     }
     return event.type;
   }
 
   // Holds the worst-case cost before calling upstream so concurrent calls cannot overdraw.
-  function reserve(userId, micros) {
-    return q.debit.run(micros, userId, micros).changes === 1;
+  async function reserve(userId, micros) {
+    const { meta } = await q.debit.bind(micros, userId, micros).run();
+    return meta.changes === 1;
   }
 
-  function settle(userId, reserved, actual, meta) {
-    tx(db, () => {
-      const refund = reserved - actual;
-      if (refund > 0) q.credit.run(refund, userId);
-      else if (refund < 0) db.prepare('UPDATE users SET balance_micros = MAX(0, balance_micros - ?) WHERE id = ?').run(-refund, userId);
-      if (actual > 0) {
-        q.ledger.run(userId, 'usage', -actual, meta.description, null, meta.model, meta.input_tokens, meta.output_tokens, Date.now());
-      }
-    });
+  // actual never exceeds reserved (the caller caps it), so this only ever refunds.
+  async function settle(userId, reserved, actual, meta) {
+    const stmts = [];
+    if (reserved > actual) stmts.push(q.credit.bind(reserved - actual, userId));
+    if (actual > 0) {
+      stmts.push(q.ledger.bind(userId, 'usage', -actual, meta.description, null, meta.model, meta.input_tokens, meta.output_tokens, Date.now()));
+    }
+    if (stmts.length) await db.batch(stmts);
   }
 
   return {
     enabled: Boolean(stripe),
     webhookEnabled: Boolean(stripe && webhookSecret),
     createCheckout, confirmCheckout, handleWebhook, fulfillCheckout, reserve, settle,
-    balance: (userId) => q.balance.get(userId)?.balance_micros ?? 0,
-    history: (userId, limit = 25) => q.history.all(userId, limit),
+    balance: async (userId) => (await q.balance.bind(userId).first())?.balance_micros ?? 0,
+    history: async (userId, limit = 25) => (await q.history.bind(userId, limit).all()).results,
   };
 }

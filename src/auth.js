@@ -1,29 +1,53 @@
-import crypto from 'node:crypto';
-import { promisify } from 'node:util';
-
-const scrypt = promisify(crypto.scrypt);
 const SESSION_DAYS = 30;
 export const SESSION_COOKIE = 'aa_session';
+// Workers caps PBKDF2 at 100k iterations; scrypt in pure JS would blow the CPU budget.
+const PBKDF2_ITERATIONS = 100_000;
 
-export const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
-const token = (bytes = 32) => crypto.randomBytes(bytes).toString('base64url');
+const enc = new TextEncoder();
+const b64 = (bytes) => btoa(String.fromCharCode(...bytes));
+const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const b64url = (bytes) => b64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const randomBytes = (n) => crypto.getRandomValues(new Uint8Array(n));
+const token = (bytes = 32) => b64url(randomBytes(bytes));
+
+export async function sha256(s) {
+  const digest = await crypto.subtle.digest('SHA-256', enc.encode(s));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Constant-time string comparison.
+export function safeEqual(a, b) {
+  const x = enc.encode(String(a));
+  const y = enc.encode(String(b));
+  if (x.length !== y.length) return false;
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
+}
+
+async function pbkdf2(password, salt, iterations, bytes = 32) {
+  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, key, bytes * 8);
+  return new Uint8Array(bits);
+}
 
 export async function hashPassword(password) {
-  const salt = crypto.randomBytes(16);
-  const key = await scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 });
-  return `scrypt$${salt.toString('base64')}$${key.toString('base64')}`;
+  const salt = randomBytes(16);
+  const key = await pbkdf2(password, salt, PBKDF2_ITERATIONS);
+  return `pbkdf2-sha256$${PBKDF2_ITERATIONS}$${b64(salt)}$${b64(key)}`;
 }
 
 export async function verifyPassword(password, stored) {
-  const [alg, saltB64, keyB64] = String(stored).split('$');
-  if (alg !== 'scrypt') return false;
-  const expected = Buffer.from(keyB64, 'base64');
-  const key = await scrypt(password, Buffer.from(saltB64, 'base64'), expected.length, { N: 16384, r: 8, p: 1 });
-  return crypto.timingSafeEqual(key, expected);
+  const [alg, iter, saltB64, keyB64] = String(stored).split('$');
+  if (alg !== 'pbkdf2-sha256') return false;
+  const expected = unb64(keyB64);
+  const key = await pbkdf2(password, unb64(saltB64), Number(iter), expected.length);
+  return safeEqual(b64(key), b64(expected));
 }
 
 // A fixed hash so unknown-email logins take as long as wrong-password ones.
-const DUMMY_HASH = await hashPassword('timing-equaliser');
+let dummyHash;
+const getDummyHash = async () => (dummyHash ??= await hashPassword('timing-equaliser'));
 
 export function validateCredentials(email, password) {
   const e = String(email || '').trim().toLowerCase();
@@ -33,7 +57,9 @@ export function validateCredentials(email, password) {
   return { email: e, password: String(password) };
 }
 
-export function createAuth(db) {
+// `starterMicros` is credit given once to accounts created through Google or Apple sign-in,
+// whose emails are verified, so the first run of a shortcut works before any top-up.
+export function createAuth(db, { starterMicros = 0 } = {}) {
   const q = {
     userByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
     insertUser: db.prepare('INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?) RETURNING id'),
@@ -48,59 +74,112 @@ export function createAuth(db) {
     insertKey: db.prepare('INSERT INTO api_keys (user_id, key_hash, prefix, name, created_at) VALUES (?, ?, ?, ?, ?)'),
     listKeys: db.prepare('SELECT id, prefix, name, created_at, last_used_at FROM api_keys WHERE user_id = ? AND revoked_at IS NULL ORDER BY id DESC'),
     revokeKey: db.prepare('UPDATE api_keys SET revoked_at = ? WHERE id = ? AND user_id = ?'),
+    identity: db.prepare('SELECT user_id FROM identities WHERE provider = ? AND subject = ?'),
+    insertIdentity: db.prepare('INSERT INTO identities (provider, subject, user_id, email, created_at) VALUES (?, ?, ?, ?, ?)'),
+    insertOauthUser: db.prepare("INSERT INTO users (email, password_hash, email_verified_at, created_at) VALUES (?, '', ?, ?) RETURNING id"),
+    // The password on an unconfirmed account may have been set by someone squatting the email,
+    // so the first verified sign-in turns it off and ends its sessions.
+    claimUser: db.prepare("UPDATE users SET password_hash = '', email_verified_at = ? WHERE id = ?"),
+    verifyUser: db.prepare('UPDATE users SET email_verified_at = ? WHERE id = ? AND email_verified_at IS NULL'),
+    deleteUserSessions: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
+    linkedProviders: db.prepare('SELECT provider FROM identities WHERE user_id = ? ORDER BY provider'),
+    starterCredit: db.prepare('UPDATE users SET balance_micros = balance_micros + ? WHERE id = ?'),
+    starterLedger: db.prepare("INSERT INTO ledger (user_id, kind, amount_micros, description, created_at) VALUES (?, 'topup', ?, 'Welcome credit', ?)"),
   };
 
   async function signup(email, password) {
-    if (q.userByEmail.get(email)) return { error: 'An account with that email already exists. Try logging in.' };
+    if (await q.userByEmail.bind(email).first()) return { error: 'An account with that email already exists. Try logging in.' };
     const hash = await hashPassword(password);
-    const { id } = q.insertUser.get(email, hash, Date.now());
-    return { userId: id };
+    try {
+      const { id } = await q.insertUser.bind(email, hash, Date.now()).first();
+      return { userId: id };
+    } catch (err) {
+      // Two signups for the same email raced past the check above.
+      if (/UNIQUE/i.test(err.message)) return { error: 'An account with that email already exists. Try logging in.' };
+      throw err;
+    }
   }
 
   async function login(email, password) {
-    const user = q.userByEmail.get(email);
-    const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_HASH);
+    const user = await q.userByEmail.bind(email).first();
+    const ok = await verifyPassword(password, user ? user.password_hash : await getDummyHash());
     if (!user || !ok) return { error: 'That email and password do not match.' };
     return { userId: user.id };
   }
 
-  function startSession(userId) {
+  async function startSession(userId) {
     const t = token();
-    q.purge.run(Date.now());
-    q.insertSession.run(sha256(t), userId, token(18), Date.now() + SESSION_DAYS * 864e5);
-    return { token: t, maxAge: SESSION_DAYS * 864e5 };
+    await db.batch([
+      q.purge.bind(Date.now()),
+      q.insertSession.bind(await sha256(t), userId, token(18), Date.now() + SESSION_DAYS * 864e5),
+    ]);
+    return { token: t, maxAge: SESSION_DAYS * 86400 };
   }
 
-  function sessionUser(t) {
+  async function sessionUser(t) {
     if (!t) return null;
-    const row = q.session.get(sha256(t));
+    const row = await q.session.bind(await sha256(t)).first();
     if (!row || row.expires_at < Date.now()) return null;
     return row;
   }
 
-  const endSession = (t) => t && q.deleteSession.run(sha256(t));
+  // Signs in with a provider identity from src/oauth.js, creating the account or linking it
+  // to an existing one with the same verified email.
+  async function oauthLogin(provider, { subject, email, emailVerified }) {
+    const linked = await q.identity.bind(provider, subject).first();
+    if (linked) return { userId: linked.user_id };
+    if (!email || !emailVerified) return { error: 'That account has no verified email address. Try another way to sign in.' };
 
-  function createApiKey(userId, name) {
+    const now = Date.now();
+    const user = await q.userByEmail.bind(email).first();
+    if (user) {
+      const unconfirmedPassword = !user.email_verified_at && user.password_hash !== '';
+      await db.batch([
+        q.insertIdentity.bind(provider, subject, user.id, email, now),
+        ...(unconfirmedPassword
+          ? [q.claimUser.bind(now, user.id), q.deleteUserSessions.bind(user.id)]
+          : [q.verifyUser.bind(now, user.id)]),
+      ]);
+      return { userId: user.id, linked: true, passwordDisabled: unconfirmedPassword };
+    }
+    try {
+      const { id } = await q.insertOauthUser.bind(email, now, now).first();
+      await db.batch([
+        q.insertIdentity.bind(provider, subject, id, email, now),
+        ...(starterMicros > 0 ? [q.starterLedger.bind(id, starterMicros, now), q.starterCredit.bind(starterMicros, id)] : []),
+      ]);
+      return { userId: id, created: true };
+    } catch (err) {
+      if (/UNIQUE/i.test(err.message)) return { error: 'Something changed while signing you in. Please try again.' };
+      throw err;
+    }
+  }
+
+  const endSession = async (t) => t && q.deleteSession.bind(await sha256(t)).run();
+
+  async function createApiKey(userId, name) {
     const secret = `aa_live_${token(24)}`;
-    q.insertKey.run(userId, sha256(secret), secret.slice(0, 12), name, Date.now());
+    await q.insertKey.bind(userId, await sha256(secret), secret.slice(0, 12), name, Date.now()).run();
     return secret;
   }
 
-  function apiKeyUser(secret) {
+  async function apiKeyUser(secret) {
     if (!secret?.startsWith('aa_live_')) return null;
-    const row = q.keyLookup.get(sha256(secret));
-    if (row) q.touchKey.run(Date.now(), row.key_id);
+    const row = await q.keyLookup.bind(await sha256(secret)).first();
+    if (row) await q.touchKey.bind(Date.now(), row.key_id).run();
     return row || null;
   }
 
   return {
-    signup, login, startSession, sessionUser, endSession, createApiKey, apiKeyUser,
-    listKeys: (userId) => q.listKeys.all(userId),
-    revokeKey: (userId, id) => q.revokeKey.run(Date.now(), id, userId),
+    signup, login, oauthLogin, startSession, sessionUser, endSession, createApiKey, apiKeyUser,
+    listKeys: async (userId) => (await q.listKeys.bind(userId).all()).results,
+    revokeKey: (userId, id) => q.revokeKey.bind(Date.now(), id, userId).run(),
+    linkedProviders: async (userId) => (await q.linkedProviders.bind(userId).all()).results.map((r) => r.provider),
   };
 }
 
-// Small fixed-window limiter for login and signup attempts.
+// Small fixed-window limiter for login and signup attempts. State lives in the isolate,
+// so it is per edge location and best effort; add a Rate Limiting binding for a hard cap.
 export function rateLimiter({ windowMs, max }) {
   const hits = new Map();
   return (key) => {

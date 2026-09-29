@@ -1,0 +1,22 @@
+#define color violet
+#define glyph sparkles
+
+// Called from another shortcut with one item, or with a List: what to work on first,
+// your instructions last.
+@content = ShortcutInput
+@instructions = ""
+const items = count(ShortcutInput)
+if items > 1 {
+    @content = getFirstItem(ShortcutInput)
+    const last = getLastItem(ShortcutInput)
+    @instructions = getText(last)
+}
+if !ShortcutInput {
+    @content = prompt("Ask AI")
+}
+const input = getText(@content)
+// @call
+if !ShortcutInput {
+    quicklook(result)
+}
+output("{result}")

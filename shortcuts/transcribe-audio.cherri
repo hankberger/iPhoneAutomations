@@ -1,0 +1,13 @@
+#define color red
+#define glyph waveform
+
+// Called from another shortcut with a recording or audio file. Run on its own, it records.
+@audio = ShortcutInput
+if !ShortcutInput {
+    @audio = recordAudio("Normal", "Immediately")
+}
+// @call
+if !ShortcutInput {
+    quicklook(result)
+}
+output("{result}")

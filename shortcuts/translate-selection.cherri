@@ -1,0 +1,11 @@
+#define color lightblue
+#define glyph globe
+#define from sharesheet
+#define inputs text, richtext, article, webpage
+#define noinput getclipboard
+
+const input = getText(ShortcutInput)
+@languages = ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Japanese", "Korean", "Chinese"]
+const choice = chooseFromList(@languages, "Translate to")
+// @call
+show("{result}")

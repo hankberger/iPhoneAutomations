@@ -1,0 +1,23 @@
+#define color darkorange
+#define glyph sun
+
+action 'getupcomingevents' upcomingEvents(number count: 'WFGetUpcomingItemCount'): variable
+
+action 'getupcomingreminders' upcomingReminders(number count: 'WFGetUpcomingItemCount'): variable
+
+const events = upcomingEvents(12)
+const reminders = upcomingReminders(12)
+@agenda = "Today is {CurrentDate}.\n\nEvents:\n"
+for event in events {
+    const starts = getEventDetail(@event, "Start Date")
+    const ends = getEventDetail(@event, "End Date")
+    @agenda += "- {@event} ({starts} to {ends})\n"
+}
+@agenda += "\nReminders:\n"
+for reminder in reminders {
+    @agenda += "- {@reminder}\n"
+}
+const input = "{@agenda}"
+// @call
+speak("{result}")
+show("{result}")

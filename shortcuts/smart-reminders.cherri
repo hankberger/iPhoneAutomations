@@ -1,0 +1,15 @@
+#define color yellow
+#define glyph checklist
+#define from sharesheet
+#define inputs text, richtext
+#define noinput getclipboard
+
+action 'addnewreminder' addReminder(text title: 'WFCalendarItemTitle')
+
+const input = getText(ShortcutInput)
+// @call
+const tasks = splitText("{result}", "\n")
+for task in tasks {
+    addReminder("{@task}")
+}
+showNotification("{result}", "Added to Reminders")
