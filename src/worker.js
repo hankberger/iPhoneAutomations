@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createAuth, validateCredentials, rateLimiter, safeEqual, SESSION_COOKIE } from './auth.js';
 import { createBilling } from './billing.js';
+import { createAppStore, CREDIT_PRODUCTS, PurchaseError } from './app-store.js';
+import { AI_CONSENT_VERSION, AI_DISCLOSURE, hasAIConsent, consentRequired, setAIConsent, sealToken, deleteAccount, AccountError } from './privacy.js';
 import { createInference, restAi, aiGateway, MAX_AUDIO_BYTES } from './inference.js';
 import { oauthProviders, startFlow, finishFlow } from './oauth.js';
 import { findAutomation, CATEGORIES, publicCatalog } from './catalog.js';
@@ -46,7 +48,8 @@ app.use(async (c, next) => {
   const auth = createAuth(c.env.DB, { starterMicros });
   const billing = createBilling(c.env.DB, { stripeKey: c.env.STRIPE_SECRET_KEY, webhookSecret: c.env.STRIPE_WEBHOOK_SECRET, appUrl });
   c.set('ctx', {
-    appUrl, auth, billing,
+    appUrl, auth, billing, db: c.env.DB,
+    appStore: createAppStore(c.env.DB, c.env),
     inference: createInference(billing, {
       ai: c.env.AI ?? (c.env.CLOUDFLARE_API_TOKEN ? restAi(c.env.CLOUDFLARE_ACCOUNT_ID, c.env.CLOUDFLARE_API_TOKEN) : null),
       // GATEWAY lets tests swap in a fake. OPENAI_API_KEY is only needed until the key is stored in AI Gateway.
@@ -166,9 +169,9 @@ const api = (handler) => async (c) => {
   const { status, json } = await handler(c, user, body);
   return c.json(json, status);
 };
-app.post('/api/v1/generate', api((c, user, body) => c.get('ctx').inference.generate(user, body)));
+app.post('/api/v1/generate', api((c, user, body) => hasAIConsent(user) ? c.get('ctx').inference.generate(user, body) : consentRequired(c.get('ctx').appUrl)));
 // Mirrors https://api.cloudflare.com/client/v4/accounts/{id}/ai/run/{model}
-app.post('/api/v1/ai/run/:model{.+}', api((c, user, body) => c.get('ctx').inference.run(user, c.req.param('model'), body)));
+app.post('/api/v1/ai/run/:model{.+}', api((c, user, body) => hasAIConsent(user) ? c.get('ctx').inference.run(user, c.req.param('model'), body) : consentRequired(c.get('ctx').appUrl)));
 
 // What the installed shortcuts call. A shortcut shows `error` in an alert as-is and offers to
 // open `action_url`, so both are written for the person holding the phone.
@@ -179,6 +182,7 @@ app.post('/api/v1/run/:slug', async (c) => {
   if (!a) return c.json({ error: 'This shortcut has been retired. Tap OK to find its replacement.', action_url: `${appUrl}/automations` }, 404);
   const page = `${appUrl}/automations/${a.slug}`;
   if (!user) return c.json({ error: 'This shortcut’s key isn’t working. Tap OK to add it again with a fresh key.', action_url: page }, 401);
+  if (!hasAIConsent(user)) { const result = consentRequired(appUrl); return c.json(result.json, result.status); }
   let result;
   if (a.audio) {
     // Audio shortcuts post the recording itself as the body.
@@ -198,6 +202,7 @@ app.post('/api/v1/run/:slug', async (c) => {
 // Keys from shortcuts can't mint: they get shared inside .shortcut files.
 app.post('/api/v1/keys', api(async (c, user, body) => {
   if (!user.can_mint) return { status: 403, json: { error: 'Only the iPhone app’s key can create keys.' } };
+  if (!hasAIConsent(user)) return consentRequired(c.get('ctx').appUrl);
   const name = String(body.name || '').trim().slice(0, 60) || 'My iPhone';
   return { status: 201, json: { key: await c.get('ctx').auth.createApiKey(user.id, name) } };
 }));
@@ -208,6 +213,55 @@ app.get('/api/v1/catalog', (c) => {
   return c.json(publicCatalog());
 });
 app.get('/api/v1/balance', api(async (c, user) => ({ status: 200, json: { balance_usd: (await c.get('ctx').billing.balance(user.id)) / 1e6 } })));
+
+// Account controls cannot be used with shareable shortcut keys. These responses
+// contain account identifiers and must never be cached by a browser or CDN.
+const accountApi = handler => api(async (c, user, body) => {
+  c.header('Cache-Control', 'private, no-store');
+  if (!user.can_mint) return { status: 403, json: { error: 'Sign in through the iPhone app to manage your account.' } };
+  try { return { status: 200, json: await handler(c, user, body) }; }
+  catch (error) {
+    if (error instanceof PurchaseError || error instanceof AccountError) return { status: error.status, json: { error: error.message } };
+    // Never log token payloads or upstream request objects.
+    return { status: 503, json: { error: 'Account service is temporarily unavailable. Please retry.' } };
+  }
+});
+app.get('/api/v1/store', accountApi(async (c, user) => {
+  const store = c.get('ctx').appStore;
+  return { enabled: store.enabled, app_account_token: await store.accountToken(user.id),
+    products: Object.entries(CREDIT_PRODUCTS).map(([id, credit]) => ({ id, credit_usd: credit / MICROS })) };
+}));
+app.post('/api/v1/store/purchase', accountApi((c, user, body) => c.get('ctx').appStore.purchase(user.id, body.signed_transaction)));
+app.post('/webhooks/apple', async c => {
+  const { body, error } = await readJson(c);
+  if (error) return c.json(...error);
+  try {
+    await c.get('ctx').appStore.notification(body.signedPayload);
+    return c.json({ received: true });
+  } catch (error) {
+    return c.json({ error: error instanceof PurchaseError ? error.message : 'Apple notification processing is temporarily unavailable.' }, error instanceof PurchaseError ? error.status : 503);
+  }
+});
+app.get('/api/v1/account/privacy', accountApi(async (_c, user) => ({ allowed: hasAIConsent(user), version: AI_CONSENT_VERSION, disclosure: AI_DISCLOSURE })));
+app.post('/api/v1/account/privacy', accountApi(async (c, user, body) => {
+  if (typeof body.allowed !== 'boolean' || body.version !== AI_CONSENT_VERSION) throw new AccountError('Review the current AI disclosure before changing permission.');
+  await setAIConsent(c.env.DB, user.id, body.allowed);
+  return { allowed: body.allowed, version: AI_CONSENT_VERSION };
+}));
+app.get('/api/v1/account', accountApi(async (c, user) => ({
+  email: user.email, keys: await c.get('ctx').auth.listKeys(user.id),
+  history: await c.get('ctx').billing.history(user.id),
+})));
+app.post('/api/v1/account/keys/revoke', accountApi(async (c, user, body) => {
+  if (!Number.isSafeInteger(body.id)) throw new AccountError('Invalid key.');
+  await c.get('ctx').auth.revokeKey(user.id, body.id);
+  return { revoked: true, signed_out: body.id === user.key_id };
+}));
+app.post('/api/v1/account/delete', accountApi(async (c, user, body) => {
+  if (body.confirmation !== 'DELETE') throw new AccountError('Confirm permanent account deletion.');
+  await deleteAccount(c.env.DB, user.id, c.env, c.get('ctx').oauth.apple);
+  return { deleted: true };
+}));
 
 app.use(loadUser);
 
@@ -233,6 +287,7 @@ app.get('/automations/:slug/install', requireUser, async (c) => {
   if (!a) return c.html(views.notFound({ user: c.get('user') }), 404);
   const { auth, billing, appUrl } = c.get('ctx');
   const user = c.get('user');
+  if (!hasAIConsent(user)) return c.redirect(`/account/ai-privacy?next=${encodeURIComponent(`/automations/${a.slug}/install`)}`, 302);
   const [key, balance] = await Promise.all([auth.createApiKey(user.id, a.name), billing.balance(user.id)]);
   await track(c, 'install_started', { userId: user.id, slug: a.slug, source: 'web' });
   c.header('Cache-Control', 'no-store');
@@ -256,6 +311,10 @@ app.get('/download/:slug', async (c) => {
 app.get('/pricing', (c) => c.html(views.pricing({ user: c.get('user') })));
 app.get('/terms', (c) => c.html(legal.terms({ user: c.get('user') })));
 app.get('/privacy', (c) => c.html(legal.privacy({ user: c.get('user') })));
+app.get('/app/terms', c => c.html(legal.terms({ appMode: true })));
+app.get('/app/privacy', c => c.html(legal.privacy({ appMode: true })));
+app.get('/app/pricing', c => c.html(views.pricing({ appMode: true })));
+
 app.get('/admin', requireAdmin, async (c) => {
   return c.html(admin({ user: c.get('user'), data: await dashboardData(c.env.DB, c.req.query('days')) }));
 });
@@ -305,7 +364,7 @@ app.on(['GET', 'POST'], '/auth/:provider/callback', async (c) => {
   const provider = c.get('ctx').oauth[id];
   if (!provider) return c.html(views.notFound({ user: c.get('user') }), 404);
   const params = c.req.method === 'POST' ? (await readForm(c)) ?? {} : c.req.query();
-  const fail = (status, error) => c.html(views.authPage({ mode: 'login', error, providers: providerList(c) }), status);
+  const fail = (status, error) => c.html(views.authPage({ mode: 'login', error, next: flow?.next || '', providers: providerList(c) }), status);
 
   let flow;
   try {
@@ -322,17 +381,23 @@ app.on(['GET', 'POST'], '/auth/:provider/callback', async (c) => {
   if (!authLimit(c.req.header('cf-connecting-ip') || 'local')) return fail(429, 'Too many attempts. Wait a few minutes and try again.');
 
   let identity;
+  let encryptedToken;
   try {
     identity = await finishFlow(provider, { code: params.code, redirectUri: redirectUri(c, id), flow });
+    if (id === 'apple') {
+      if (!identity.revocationToken) throw new Error('Apple did not return a revocation token.');
+      encryptedToken = await sealToken(identity.revocationToken, c.env.TOKEN_ENCRYPTION_KEY, identity.subject);
+    }
   } catch (err) {
-    console.error(err);
     return fail(400, `${provider.name} sign-in failed. Please try again.`);
   }
   const result = await c.get('ctx').auth.oauthLogin(id, identity);
   if (result.error) return fail(400, result.error);
+  if (encryptedToken) await c.env.DB.prepare("UPDATE identities SET revocation_token = ? WHERE provider = 'apple' AND subject = ? AND user_id = ?")
+    .bind(encryptedToken, identity.subject, result.userId).run();
   await setSession(c, result.userId);
   await track(c, result.created ? 'signup' : result.linked ? 'oauth_linked' : 'login', { userId: result.userId, source: id });
-  if (result.linked) return c.redirect(`/account?linked=${id}${result.passwordDisabled ? '&password=off' : ''}`, 303);
+  if (result.linked && !flow.next?.startsWith('/app/connect')) return c.redirect(`/account?linked=${id}${result.passwordDisabled ? '&password=off' : ''}`, 303);
   return c.redirect(safeNext(flow.next), 303);
 });
 
@@ -363,7 +428,45 @@ app.post('/logout', requireUser, async (c) => {
 });
 
 // Account
+app.get('/account/ai-privacy', requireUser, c => {
+  c.header('Cache-Control', 'private, no-store');
+  return c.html(views.layout({ title: 'AI Privacy', user: c.get('user'), body: `<section class="wrap narrow page-head">
+    <h1>AI data sharing</h1><p>${AI_DISCLOSURE}</p><p>You can browse without permission. Turning it off blocks future calls from all your keys; requests already sent cannot be recalled.</p>
+    <p>Current setting: ${hasAIConsent(c.get('user')) ? 'Allowed' : 'Not allowed'}.</p>
+    <form method="post"><input type="hidden" name="csrf" value="${views.e(c.get('user').csrf)}">
+    <input type="hidden" name="version" value="${AI_CONSENT_VERSION}">
+    <input type="hidden" name="next" value="${views.e(safeNext(c.req.query('next')))}">
+    <button class="btn" name="allowed" value="true">Allow AI data sharing</button>
+    <button class="btn" name="allowed" value="false">Turn off AI data sharing</button></form></section>` }));
+});
+app.post('/account/ai-privacy', requireUser, async c => {
+  const form = c.get('form');
+  if (Number(form.version) !== AI_CONSENT_VERSION || !['true', 'false'].includes(form.allowed)) return c.text('Review the current disclosure and try again.', 400);
+  await setAIConsent(c.env.DB, c.get('user').id, form.allowed === 'true');
+  return c.redirect(form.allowed === 'true' ? safeNext(form.next) : '/account/ai-privacy', 303);
+});
+app.get('/account/delete', requireUser, c => {
+  c.header('Cache-Control', 'private, no-store');
+  return c.html(views.layout({ title: 'Delete account', user: c.get('user'), body: `<section class="wrap narrow page-head">
+    <h1>Permanently delete account</h1><p>This cannot be undone. Your data, sessions and keys will be removed. All shortcuts lose access and remaining credit is forfeited. This does not request a payment refund. Unlinked payment identifiers remain to prevent replay.</p>
+    <p>Request any Apple refund through <a href="https://reportaproblem.apple.com">Apple</a> before deletion. Contact support for web-payment questions.</p>
+    <form method="post"><input type="hidden" name="csrf" value="${views.e(c.get('user').csrf)}">
+    <label>Type DELETE to confirm<input name="confirmation" required autocomplete="off"></label>
+    <button class="btn" type="submit">Permanently delete account</button></form><a href="/account">Cancel</a></section>` }));
+});
+app.post('/account/delete', requireUser, async c => {
+  if (c.get('form').confirmation !== 'DELETE') return c.text('Type DELETE to confirm permanent deletion.', 400);
+  try {
+    await deleteAccount(c.env.DB, c.get('user').id, c.env, c.get('ctx').oauth.apple);
+    deleteCookie(c, SESSION_COOKIE, { path: '/' });
+    return c.html(views.layout({ title: 'Account deleted', body: '<section class="wrap page-head"><h1>Your account has been deleted.</h1></section>' }));
+  } catch (error) {
+    if (error instanceof AccountError && error.status === 409) return c.redirect('/auth/apple?next=%2Faccount%2Fdelete', 303);
+    return c.text(error instanceof AccountError ? error.message : 'Account deletion is temporarily unavailable. Please retry.', 503);
+  }
+});
 const renderAccount = async (c, extra = {}, status = 200) => {
+  c.header('Cache-Control', 'private, no-store');
   const { auth, billing, inference, apiUrl } = c.get('ctx');
   const user = c.get('user');
   const [balance, keys, history, linked] = await Promise.all([

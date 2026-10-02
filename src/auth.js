@@ -64,11 +64,11 @@ export function createAuth(db, { starterMicros = 0 } = {}) {
     userByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
     insertUser: db.prepare('INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?) RETURNING id'),
     insertSession: db.prepare('INSERT INTO sessions (token_hash, user_id, csrf, expires_at) VALUES (?, ?, ?, ?)'),
-    session: db.prepare(`SELECT s.csrf, s.expires_at, u.id, u.email, u.email_verified_at, u.balance_micros, u.stripe_customer_id
+    session: db.prepare(`SELECT s.csrf, s.expires_at, u.id, u.email, u.email_verified_at, u.balance_micros, u.stripe_customer_id, u.ai_consent_version
                          FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`),
     deleteSession: db.prepare('DELETE FROM sessions WHERE token_hash = ?'),
     purge: db.prepare('DELETE FROM sessions WHERE expires_at < ?'),
-    keyLookup: db.prepare(`SELECT k.id AS key_id, k.can_mint, u.id, u.email, u.balance_micros FROM api_keys k
+    keyLookup: db.prepare(`SELECT k.id AS key_id, k.can_mint, u.id, u.email, u.balance_micros, u.ai_consent_version FROM api_keys k
                            JOIN users u ON u.id = k.user_id WHERE k.key_hash = ? AND k.revoked_at IS NULL`),
     touchKey: db.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?'),
     insertKey: db.prepare('INSERT INTO api_keys (user_id, key_hash, prefix, name, created_at, can_mint) VALUES (?, ?, ?, ?, ?, ?)'),

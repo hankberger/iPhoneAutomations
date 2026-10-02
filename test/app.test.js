@@ -38,7 +38,12 @@ async function boot() {
     return res;
   };
   const form = (path, data) => req(path, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(data).toString() });
-  return { db, ai, req, form };
+  const allowAI = async () => {
+    const html = await (await req('/account/ai-privacy')).text();
+    const csrf = html.match(/name="csrf" value="([^"]+)"/)[1];
+    assert.equal((await form('/account/ai-privacy', { csrf, version: '1', allowed: 'true' })).status, 303);
+  };
+  return { db, ai, req, form, allowAI };
 }
 
 test('plain http redirects to https', async () => {
@@ -71,8 +76,9 @@ test('pages render', async () => {
 });
 
 test('installed shortcuts: install page key, friendly errors, prompts from the catalog', async () => {
-  const { db, ai, req, form } = await boot();
+  const { db, ai, req, form, allowAI } = await boot();
   await form('/signup', { email: 'p@b.co', password: 'correct horse battery' });
+  await allowAI();
   const html = await (await req('/automations/tone-shifter/install')).text();
   const key = html.match(/data-key="(aa_live_[\w-]+)"/)[1];
   assert.match(await (await req('/account')).text(), /Change the Tone/, 'key is named after the shortcut');
@@ -116,10 +122,11 @@ test('installed shortcuts: install page key, friendly errors, prompts from the c
 });
 
 test('signup, login, csrf, keys and metered Cloudflare proxy', async () => {
-  const { db, ai, req, form } = await boot();
+  const { db, ai, req, form, allowAI } = await boot();
   assert.equal((await form('/signup', { email: 'a@b.co', password: 'short' })).status, 400);
   assert.equal((await form('/signup', { email: 'A@b.co', password: 'correct horse battery' })).status, 303);
   assert.equal((await form('/signup', { email: 'a@b.co', password: 'correct horse battery' })).status, 409);
+  await allowAI();
 
   let html = await (await req('/account')).text();
   assert.match(html, /a@b\.co/);
@@ -187,8 +194,9 @@ test('signup, login, csrf, keys and metered Cloudflare proxy', async () => {
 });
 
 test('photo, JSON and audio shortcuts', async () => {
-  const { db, ai, req, form } = await boot();
+  const { db, ai, req, form, allowAI } = await boot();
   await form('/signup', { email: 'p@b.co', password: 'correct horse battery' });
+  await allowAI();
   const key = (await (await req('/automations/snap-calories/install')).text()).match(/data-key="(aa_live_[\w-]+)"/)[1];
   const billing = createBilling(db, { stripeKey: '' });
   await billing.fulfillCheckout({ id: 'cs_test_3', payment_status: 'paid', metadata: { user_id: '1', credit_micros: '1000000' } });
@@ -229,8 +237,9 @@ test('photo, JSON and audio shortcuts', async () => {
 });
 
 test('building blocks take the person’s own instructions', async () => {
-  const { db, ai, req, form } = await boot();
+  const { db, ai, req, form, allowAI } = await boot();
   await form('/signup', { email: 'k@b.co', password: 'correct horse battery' });
+  await allowAI();
   const key = (await (await req('/automations/ask-ai/install')).text()).match(/data-key="(aa_live_[\w-]+)"/)[1];
   const billing = createBilling(db, { stripeKey: '' });
   await billing.fulfillCheckout({ id: 'cs_test_4', payment_status: 'paid', metadata: { user_id: '1', credit_micros: '1000000' } });
@@ -315,8 +324,9 @@ test('install page downloads the signed file under the shortcut’s name, or ope
   assert.match(res.headers.get('content-disposition'), /^attachment; filename="reply-drafter\.shortcut"; filename\*=UTF-8''Draft%20a%20Reply\.shortcut$/);
   assert.equal((await app.fetch(new Request('http://localhost/download/nope'), env)).status, 404);
 
-  const { req, form } = await boot();
+  const { req, form, allowAI } = await boot();
   await form('/signup', { email: 'd@b.co', password: 'correct horse battery' });
+  await allowAI();
   let html = await (await req('/automations/explain-this/install')).text();
   assert.match(html, /id="add" href="http:\/\/localhost\/download\/explain-this"/);
   assert.doesNotMatch(html, /import-shortcut/, 'iOS rejects import-shortcut for anything but iCloud links');
@@ -335,7 +345,7 @@ test('terms and privacy are linked from every page footer and the signup form', 
 });
 
 test('iPhone app: catalog, connect handoff and install keys', async () => {
-  const { req, form } = await boot();
+  const { req, form, allowAI } = await boot();
   let res = await req('/api/v1/catalog');
   const catalog = await res.json();
   assert.equal(res.status, 200);
@@ -351,6 +361,7 @@ test('iPhone app: catalog, connect handoff and install keys', async () => {
   assert.equal(res.headers.get('location'), `/login?next=${encodeURIComponent(`/app/connect?state=${state}`)}`);
 
   await form('/signup', { email: 'app@b.co', password: 'correct horse battery' });
+  await allowAI();
   assert.equal((await req('/app/connect?state=short')).status, 404);
   const html = await (await req(`/app/connect?state=${state}`)).text();
   const csrf = html.match(/name="csrf" value="([^"]+)"/)[1];

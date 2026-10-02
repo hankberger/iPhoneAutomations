@@ -1,5 +1,5 @@
-import { SignedDataVerifier, Environment } from '@apple/app-store-server-library';
 import { Buffer } from 'node:buffer';
+const Environment = { PRODUCTION: 'Production', SANDBOX: 'Sandbox' };
 
 export const CREDIT_PRODUCTS = Object.freeze(Object.fromEntries([5, 10, 25, 50].map(amount =>
   [`com.iphoneadvanced.app.credits${amount}`, amount * 1_000_000])));
@@ -29,13 +29,19 @@ const b64 = value => Buffer.from(value).toString('base64url');
 // fetched from Apple over authenticated HTTPS, so an old signed purchase cannot undo a refund.
 export function appleStoreClient(env, fetchImpl = globalThis.fetch) {
   const enabled = Boolean(env.APP_STORE_ISSUER_ID && env.APP_STORE_KEY_ID && env.APP_STORE_PRIVATE_KEY && Number(env.APP_STORE_APP_ID));
-  const verifier = environment => new SignedDataVerifier([Buffer.from(ROOT, 'base64')], false,
-    environment, BUNDLE_ID, Number(env.APP_STORE_APP_ID));
   const verify = async (value, method) => {
     if (!enabled) throw new PurchaseError('App Store purchases are temporarily unavailable. Please try again later.', 503);
     if (typeof value !== 'string' || value.length > 32_768) reject('Invalid App Store transaction.');
+    // Load just verification in request context; do not initialize unrelated API
+    // client modules. Distinguish invalid signatures from runtime/config failures.
+    const { SignedDataVerifier, VerificationException } = await import('@apple/app-store-server-library/dist/jws_verification.js');
     for (const environment of [Environment.PRODUCTION, Environment.SANDBOX]) {
-      try { return await verifier(environment)[method](value); } catch {}
+      try {
+        const verifier = new SignedDataVerifier([Buffer.from(ROOT, 'base64')], false, environment, BUNDLE_ID, Number(env.APP_STORE_APP_ID));
+        return await verifier[method](value);
+      } catch (error) {
+        if (!(error instanceof VerificationException)) throw new PurchaseError('Apple verification is temporarily unavailable. Please retry.', 503);
+      }
     }
     reject('Apple could not verify this purchase.');
   };

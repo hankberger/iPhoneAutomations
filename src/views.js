@@ -35,7 +35,7 @@ export const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="current
 // Grid spark mark; same drawing as public/favicon.svg.
 const LOGO = '<svg class="mark" aria-hidden="true" viewBox="0 0 32 32"><rect x="1" y="1" width="13.5" height="13.5" rx="4" fill="#ff6b3d"/><path d="M24.75 .5c.8 4.9 2.35 6.45 7.25 7.25-4.9.8-6.45 2.35-7.25 7.25-.8-4.9-2.35-6.45-7.25-7.25 4.9-.8 6.45-2.35 7.25-7.25z" fill="#7c5cff"/><rect x="1" y="17.5" width="13.5" height="13.5" rx="4" fill="#10b981"/><rect x="17.5" y="17.5" width="13.5" height="13.5" rx="4" fill="#0ea5e9"/></svg>';
 
-export function layout({ title, user, body, active = '', stylesheet = '' }) {
+export function layout({ title, user, body, active = '', stylesheet = '', appMode = false }) {
   const nav = (href, label) => `<a href="${href}"${active === href ? ' aria-current="page"' : ''}>${label}</a>`;
   return `<!doctype html>
 <html lang="en">
@@ -63,20 +63,20 @@ ${stylesheet ? `<link rel="stylesheet" href="${e(stylesheet)}">` : ''}
 <body>
 <header class="site-header">
   <div class="wrap row">
-    <a class="brand" href="/">${LOGO}<span>Advanced Automations</span></a>
-    <nav class="nav">
+    <a class="brand" href="${appMode ? '/app/privacy' : '/'}">${LOGO}<span>Advanced Automations</span></a>
+    ${appMode ? '' : `<nav class="nav">
       ${nav('/automations', 'Shortcuts')}
       ${nav('/pricing', 'Pricing')}
       ${user?.is_admin ? nav('/admin', 'Analytics') : ''}
       ${user ? `<a class="btn btn-sm" href="/account">Account</a>` : `<a class="btn btn-sm" href="/login">Log in</a>`}
-    </nav>
+    </nav>`}
   </div>
 </header>
 <main>${body}</main>
 <footer class="site-footer">
   <div class="wrap row">
-    <a class="brand small" href="/">${LOGO}<span>Advanced Automations</span></a>
-    <nav class="footer-links small"><a href="/pricing">Pricing</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a></nav>
+    <span class="brand small">${LOGO}<span>Advanced Automations</span></span>
+    <nav class="footer-links small">${appMode ? '<a href="/app/terms">Terms</a><a href="/app/privacy">Privacy</a>' : '<a href="/pricing">Pricing</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a>'}</nav>
     <span class="muted small">© ${new Date().getFullYear()} · iphoneadvanced.com</span>
   </div>
 </footer>
@@ -281,6 +281,7 @@ export function install({ user, a, key, balance, fileUrl }) {
 
 export function appConnect({ user, state }) {
   return layout({
+    appMode: true,
     title: 'Connect the app',
     user,
     body: `
@@ -300,13 +301,14 @@ export function appConnect({ user, state }) {
   });
 }
 
-export function pricing({ user }) {
+export function pricing({ user, appMode = false }) {
   const rows = Object.entries(MODELS).map(([id, m]) => {
     const p = retailPrice(id);
     return `<tr><td><strong>${e(m.label)}</strong><div class="small muted">${id}</div></td><td class="num">$${p.input.toFixed(2)}</td><td class="num">$${p.output.toFixed(2)}</td></tr>`;
   }).join('');
   return layout({
     title: 'Pricing',
+    appMode,
     user,
     active: '/pricing',
     body: `
@@ -339,6 +341,8 @@ const PROVIDER_LOGOS = {
 };
 
 export function authPage({ mode, error, email = '', next = '', providers = [], starterMicros = 0 }) {
+  const appMode = next.startsWith('/app/connect');
+  if (appMode && !providers.some(p => p.id === 'apple')) providers = [];
   const isLogin = mode === 'login';
   const getting = AUTOMATIONS.find((a) => next === `/automations/${a.slug}/install`);
   const credit = starterMicros && providers.length ? ` Sign in with ${providers.map((p) => p.name).join(' or ')} and start with ${starterCents(starterMicros)} of free credit.` : '';
@@ -350,6 +354,7 @@ export function authPage({ mode, error, email = '', next = '', providers = [], s
     <p class="divider small muted"><span>or use email</span></p>` : '';
   return layout({
     title: isLogin ? 'Log in' : 'Create account',
+    appMode,
     active: isLogin ? '/login' : '',
     body: `
 <section class="wrap auth">
@@ -362,7 +367,7 @@ export function authPage({ mode, error, email = '', next = '', providers = [], s
     <label>Email<input name="email" type="email" autocomplete="email" required value="${e(email)}"></label>
     <label>Password<input name="password" type="password" autocomplete="${isLogin ? 'current-password' : 'new-password'}" minlength="10" required></label>
     <button class="btn btn-lg btn-block" type="submit">${isLogin ? 'Log in' : 'Create account'}</button>
-    ${isLogin ? '' : '<p class="small muted center">By creating an account you agree to our <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.</p>'}
+    ${isLogin ? '' : `<p class="small muted center">By creating an account you agree to our <a href="${appMode ? '/app' : ''}/terms">Terms</a> and <a href="${appMode ? '/app' : ''}/privacy">Privacy Policy</a>.</p>`}
     <p class="small muted center">${isLogin ? `New here? <a href="/signup${e(nextQuery)}">Create an account</a>` : `Have an account? <a href="/login${e(nextQuery)}">Log in</a>`}</p>
   </form>
 </section>`,
@@ -428,9 +433,13 @@ export function account({ user, keys, history, linked = [], newKey, notice, bill
     <h2>Activity</h2>
     <table class="table"><thead><tr><th>Date</th><th>Description</th><th class="num">Amount</th></tr></thead><tbody>${historyRows}</tbody></table>
   </div>
+  <div class="panel wide"><h2>Privacy and account</h2>
+    <a href="/account/ai-privacy">AI data-sharing permission</a> · <a href="/account/delete">Delete account</a>
+  </div>
 </section>`,
   });
 }
+
 
 export const notFound = ({ user }) => layout({
   title: 'Not found', user,
