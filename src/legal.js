@@ -120,6 +120,7 @@ export const privacy = ({ user, appMode = false }) => page({
 
 <h2>How long we keep it</h2>
 <p>We keep account and billing records while your account is open. After you delete your account, we remove your account details, keys and sessions, but may keep payment records for as long as tax and accounting law requires. Sessions expire on their own, and our hosting provider's logs are kept for a limited time.</p>
+<p>We permanently retain previously issued numeric account IDs to prevent delayed payments or requests from reaching a different account. This ID registry does not contain email addresses, credentials or request content. We also retain unlinked Apple transaction identifiers to prevent purchase replay.</p>
 
 <h2>Your choices and rights</h2>
 <p>You can see your balance, history and API keys on your <a href="/account">account page</a>, revoke keys, change AI-sharing permission and delete your account there. Account deletion is also available directly in the iPhone app's Account tab. To get a copy of your data or correct it, email ${mail}. Depending on where you live, you may have further rights, such as to object to processing or complain to a data protection authority. We will not treat you differently for using them.</p>

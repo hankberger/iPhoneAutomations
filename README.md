@@ -164,9 +164,9 @@ App Store preparation and outstanding release gates are tracked in [docs/app-sto
 
 The native client now buys consumable credit with StoreKit; Stripe remains on the independent website. `/api/v1/store/purchase` verifies account-bound transactions with Apple; `/webhooks/apple` handles signed App Store Server Notifications V2. See `.dev.vars.example` for server configuration. Never grant production inference credit to arbitrary sandbox accounts.
 
-Before deploying this version, apply migrations through `0008` and provision `TOKEN_ENCRYPTION_KEY` (a separate 32-byte hex secret) alongside the Apple sign-in credentials. Apple provider tokens are encrypted at login for revocation during deletion. Existing accounts must explicitly approve AI sharing; native and downloaded shortcut calls are blocked until they do so.
+Before deploying this version, apply migrations through `0009` and provision `TOKEN_ENCRYPTION_KEY` (a separate 32-byte hex secret) alongside the Apple sign-in credentials. Apple provider tokens are encrypted at login for revocation during deletion. Existing accounts must explicitly approve AI sharing; native and downloaded shortcut calls are blocked until they do so.
 
-Account deletion UI and routes are implemented but **remain disabled**. Do not enable `ACCOUNT_DELETION_ENABLED` until the pending account-ID/late-payment safeguards and release tests in the checklist are complete. No production migration or deployment is implied by these source changes.
+Account deletion UI, routes and account-ID/late-payment safeguards are implemented but deletion **remains disabled by default**. Migration `0009` permanently retains issued numeric IDs; password/OAuth signup never recycle them, and late Stripe/usage ledger writes skip deleted accounts. Do not enable `ACCOUNT_DELETION_ENABLED` until migration, matching server deployment and staging/device tests in the checklist are complete. Never reset the ID registry or roll back to pre-safeguard auth/billing code after enabling deletion. Late Stripe payments do not trigger automatic refunds. No production migration or deployment is implied by these source changes.
 
 Local Worker verification (no real credentials or upstream calls):
 

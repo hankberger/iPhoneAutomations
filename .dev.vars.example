@@ -24,7 +24,7 @@ APP_STORE_PRIVATE_KEY=
 APP_STORE_APP_ID=
 # Dedicated review/test accounts only. Sandbox purchases never fund arbitrary accounts.
 APP_STORE_SANDBOX_USER_IDS=
-# Keep false until the deletion/late-payment release gates in docs/app-store-review.md pass.
+# Keep false until migration 0009, matching code and the deletion release tests pass.
 ACCOUNT_DELETION_ENABLED=false
 # Private analytics operators: verified Google/Apple emails, or approved existing IDs.
 ADMIN_EMAILS=
