@@ -71,6 +71,7 @@ export function createAppStore(db, env, client = appleStoreClient(env)) {
     return (await db.prepare('SELECT app_account_token FROM users WHERE id = ?').bind(userId).first())?.app_account_token;
   }
   function validate(tx, user) {
+    if (!Number.isSafeInteger(tx.signedDate) || tx.signedDate <= 0) reject('Missing Apple transaction date.');
     if (tx.bundleId !== BUNDLE_ID || tx.type !== 'Consumable' || tx.inAppOwnershipType !== 'PURCHASED' || tx.quantity !== 1 || !CREDIT_PRODUCTS[tx.productId]) reject('Unsupported App Store purchase.');
     if (!/^\d{1,30}$/.test(tx.transactionId)) reject('Invalid transaction identifier.');
     if (!user?.app_account_token || tx.appAccountToken?.toLowerCase() !== user.app_account_token) reject('This purchase belongs to a different Advanced Automations account. Sign in to the account that bought it.');
@@ -85,23 +86,34 @@ export function createAppStore(db, env, client = appleStoreClient(env)) {
     const revoked = tx.revocationDate != null;
     const existing = await db.prepare('SELECT user_id FROM app_store_transactions WHERE id = ?').bind(id).first();
     if (existing && existing.user_id !== user.id) reject('This transaction has already been assigned.');
-    // changes() chains each operation to the previous insert in a single D1 transaction.
-    // Refund tombstones block a delayed or replayed purchase from ever granting new credit.
+    // A revision is applied exactly once in a single D1 transaction. A reversal
+    // restores only the amount removed, not already spent credit. signedDate stops
+    // older concurrently fetched Apple state overwriting a newer refund/reversal.
     await db.batch([
-      db.prepare('INSERT INTO app_store_transactions (id, user_id, product_id, environment, credit_micros, revoked, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING')
-        .bind(id, user.id, tx.productId, tx.environment, credit, revoked ? 1 : 0, Date.now()),
-      db.prepare("INSERT INTO ledger (user_id, kind, amount_micros, description, apple_event_id, created_at) SELECT ?, 'topup', ?, 'App Store credit', ?, ? WHERE changes() = 1 AND ? = 0")
-        .bind(user.id, credit, `purchase:${id}`, Date.now(), revoked ? 1 : 0),
-      db.prepare('UPDATE users SET balance_micros = balance_micros + ? WHERE id = ? AND changes() = 1').bind(credit, user.id),
+      // 2 is an internal undelivered state; no request can observe it outside this batch.
+      db.prepare('INSERT INTO app_store_transactions (id, user_id, product_id, environment, credit_micros, revoked, created_at) VALUES (?, ?, ?, ?, ?, 2, ?) ON CONFLICT(id) DO NOTHING')
+        .bind(id, user.id, tx.productId, tx.environment, credit, Date.now()),
+      db.prepare(`UPDATE app_store_transactions SET
+        balance_delta = CASE WHEN revoked = 2 THEN CASE WHEN ? = 1 THEN 0 ELSE credit_micros END
+          WHEN ? = 1 THEN -MIN(credit_micros, (SELECT balance_micros FROM users WHERE id = ?)) ELSE removed_micros END,
+        removed_micros = CASE WHEN ? = 1 THEN CASE WHEN revoked = 2 THEN credit_micros
+          ELSE MIN(credit_micros, (SELECT balance_micros FROM users WHERE id = ?)) END ELSE 0 END,
+        revoked = ?, last_signed_date = ?, state_revision = state_revision + 1
+        WHERE id = ? AND user_id = ? AND revoked != ? AND last_signed_date < ?`)
+        .bind(+revoked, +revoked, user.id, +revoked, user.id, +revoked, tx.signedDate, id, user.id, +revoked, tx.signedDate),
+      db.prepare(`INSERT INTO ledger (user_id, kind, amount_micros, description, apple_event_id, created_at)
+        SELECT user_id, CASE WHEN revoked = 1 THEN 'refund' ELSE 'topup' END, balance_delta,
+          CASE WHEN revoked = 1 THEN 'App Store refund: unused credit removed' ELSE 'App Store credit or refund reversal' END,
+          CASE WHEN state_revision = 1 AND revoked = 0 THEN 'purchase:' || id ELSE 'state:' || id || ':' || state_revision END,
+          ? FROM app_store_transactions WHERE id = ? AND changes() = 1`)
+        .bind(Date.now(), id),
+      db.prepare('UPDATE users SET balance_micros = balance_micros + (SELECT balance_delta FROM app_store_transactions WHERE id = ?) WHERE id = ? AND changes() = 1')
+        .bind(id, user.id),
+      db.prepare('UPDATE app_store_transactions SET last_signed_date = MAX(last_signed_date, ?) WHERE id = ? AND user_id = ?')
+        .bind(tx.signedDate, id, user.id),
     ]);
-    if (revoked) await db.batch([
-      db.prepare('UPDATE app_store_transactions SET revoked = 1 WHERE id = ? AND revoked = 0').bind(id),
-      db.prepare("INSERT INTO ledger (user_id, kind, amount_micros, description, apple_event_id, created_at) SELECT id, 'refund', -MIN(balance_micros, ?), 'App Store refund: unused credit removed', ?, ? FROM users WHERE id = ? AND changes() = 1 ON CONFLICT(apple_event_id) DO NOTHING")
-        .bind(credit, `refund:${id}`, Date.now(), user.id),
-      db.prepare('UPDATE users SET balance_micros = balance_micros + (SELECT amount_micros FROM ledger WHERE apple_event_id = ?) WHERE id = ? AND changes() = 1')
-        .bind(`refund:${id}`, user.id),
-    ]);
-    return { balance_usd: (await db.prepare('SELECT balance_micros FROM users WHERE id = ?').bind(user.id).first()).balance_micros / 1e6, revoked };
+    const state = await db.prepare('SELECT revoked FROM app_store_transactions WHERE id = ?').bind(id).first();
+    return { balance_usd: (await db.prepare('SELECT balance_micros FROM users WHERE id = ?').bind(user.id).first())?.balance_micros / 1e6, revoked: state.revoked === 1 };
   }
   async function purchase(userId, signed) {
     const tx = await client.transaction(signed);

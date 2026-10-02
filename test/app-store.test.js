@@ -7,7 +7,7 @@ async function fixture(env = {}) {
   const db = memoryD1();
   db.raw.exec("INSERT INTO users (id,email,password_hash,created_at) VALUES (1,'a@example.com','',0),(2,'b@example.com','',0)");
   const tx = { transactionId: '123456789', bundleId: 'com.iphoneadvanced.app', type: 'Consumable', inAppOwnershipType: 'PURCHASED', quantity: 1,
-    productId: 'com.iphoneadvanced.app.credits5', environment: 'Production' };
+    productId: 'com.iphoneadvanced.app.credits5', environment: 'Production', signedDate: 1000 };
   const client = { enabled: true, transaction: async () => ({ ...tx }), notification: async () => ({ notificationType: 'REFUND', data: { signedTransactionInfo: 'verified' } }) };
   const store = createAppStore(db, env, client);
   tx.appAccountToken = await store.accountToken(1);
@@ -48,6 +48,7 @@ test('refunds remove only available credit, once; a refunded transaction cannot 
   await store.purchase(1, 'verified');
   db.raw.exec('UPDATE users SET balance_micros = 2000000 WHERE id = 1');
   tx.revocationDate = Date.now();
+  tx.signedDate++;
   await store.notification('verified');
   await store.notification('verified');
   assert.equal(balance(), 0);
@@ -74,4 +75,45 @@ test('verification rejects forged signed payloads before any request to Apple or
   await assert.rejects(client.transaction(payload), /verify/);
   await assert.rejects(client.notification(payload), /verify/);
   await assert.rejects(appleStoreClient({}).transaction(payload), /unavailable/);
+});
+
+test('refund reversals restore only removed credit, once, and stale results cannot overwrite newer state', async () => {
+  const { store, tx, db, balance } = await fixture();
+  await store.purchase(1, 'verified');
+  db.raw.exec('UPDATE users SET balance_micros = 1200000 WHERE id = 1');
+  tx.revocationDate = 2000;
+  tx.signedDate = 2000;
+  await store.notification('verified');
+  assert.equal(balance(), 0);
+  delete tx.revocationDate;
+  tx.signedDate = 3000;
+  await Promise.all([store.notification('verified'), store.purchase(1, 'verified')]);
+  assert.equal(balance(), 1_200_000, 'spent credit is not minted again');
+  tx.revocationDate = 2000;
+  tx.signedDate = 2500;
+  await store.notification('verified');
+  assert.equal(balance(), 1_200_000, 'stale refund ignored');
+  tx.signedDate = 4000;
+  await store.notification('verified');
+  assert.equal(balance(), 0, 'a second actual refund removes credit once');
+  delete tx.revocationDate;
+  tx.signedDate = 3500;
+  await store.purchase(1, 'verified');
+  assert.equal(balance(), 0, 'stale reversal cannot re-credit');
+  tx.signedDate = 5000;
+  await store.notification('verified');
+  await store.notification('verified');
+  assert.equal(balance(), 1_200_000);
+});
+
+test('reversal after a refund-before-delivery grants the original undelivered credit once', async () => {
+  const { store, tx, balance } = await fixture();
+  tx.revocationDate = 1000;
+  await store.notification('verified');
+  assert.equal(balance(), 0);
+  delete tx.revocationDate;
+  tx.signedDate++;
+  await store.notification('verified');
+  await store.purchase(1, 'verified');
+  assert.equal(balance(), 5_000_000);
 });
