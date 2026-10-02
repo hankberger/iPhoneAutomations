@@ -3,7 +3,7 @@
 import { layout } from './views.js';
 
 export const LEGAL = {
-  updated: 'September 29, 2026',
+  updated: 'October 2, 2026',
   contact: 'support@iphoneadvanced.com',
 };
 
@@ -26,7 +26,7 @@ export const terms = ({ user }) => page({
   title: 'Terms of Service',
   path: '/terms',
   user,
-  intro: 'These terms cover your use of iphoneadvanced.com, the Shortcuts you download from it, and the AI features they call. By creating an account or using the site, you agree to them.',
+  intro: 'These terms cover your use of the Advanced Automations iPhone app, iphoneadvanced.com, the Shortcuts you download, and the AI features they call. By creating an account or using the service, you agree to them.',
   body: `
 <h2>1. The service</h2>
 <p>Advanced Automations ("we", "us") offers free iPhone Shortcuts. Some of them send text, images or audio to our API, which runs an AI model and returns the result. The Shortcuts are free. AI usage is paid from a prepaid credit balance on your account.</p>
@@ -90,10 +90,13 @@ export const privacy = ({ user }) => page({
   <li><strong>API keys.</strong> A hash and short prefix of each key, when it was made and when it was last used.</li>
   <li><strong>Session cookie.</strong> One cookie that keeps you signed in, plus a short-lived cookie during Google or Apple sign-in. We use no advertising or analytics cookies.</li>
   <li><strong>Request logs.</strong> Like most websites, our hosting provider records technical details such as IP address, browser, and the time and path of each request, for security and debugging.</li>
+  <li><strong>Product activity.</strong> We use first-party activity records, such as account creation, shortcut installation and whether an action succeeded, to understand and improve the service. These records may be linked to your account. They do not include your AI input or output and are not used for advertising or cross-app tracking.</li>
+  <li><strong>Local privacy preferences.</strong> The iPhone app stores your AI-sharing choice on your device for the current sign-in. Signing out clears that permission. We do not use it to track you across apps.</li>
 </ul>
 
 <h2>What you send to the AI</h2>
-<p>When a Shortcut calls our API, it sends the text, image or audio you chose to our servers, which pass it to an AI model and return the result. <strong>We do not store the content of your requests or the AI's replies in our database.</strong> We keep only the billing record described above. Our providers may keep request data briefly, as described below.</p>
+<p>When a Shortcut calls our API, it sends the text, image or audio you chose to our servers, which pass it to an AI model and return the result. <strong>We do not store the content of your requests or the AI's replies in our database.</strong> We keep billing and product-activity records as described above. Our providers may retain request data under their policies, as described below.</p>
+<p>Before native AI actions send content, the iPhone app asks you to allow data sharing in Account → AI Privacy. You may decline and still browse the library, or turn off sharing to block future native AI requests on that device. Shortcuts installed separately run under their own permissions in Apple Shortcuts; changing the app's local setting does not revoke their keys. Revoke a shortcut's API key to stop its access. Only share content you have permission to send, including other people's messages, documents or recordings.</p>
 
 <h2>Who we share it with</h2>
 <p>We share data only with the companies that run the service for us:</p>

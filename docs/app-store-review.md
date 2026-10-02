@@ -77,7 +77,7 @@ Reconcile the public Terms and Privacy Policy after these features exist. The cu
 
 The manifest currently conservatively declares account email/ID, purchase history, product interaction, user-selected text/messages/photos/audio/health content and diagnostics as linked to the account, for app functionality, with no tracking. Confirm each category against the final feature set and actual retention before copying answers into App Store Connect. Apple's definition of collection includes third-party retention beyond servicing a request. The manifest is not a replacement for App Store Connect's questionnaire or the public policy.
 
-Concurrent analytics work appeared during this audit (`analytics_events`, currently account-linked run outcomes). The manifest also declares analytics as a purpose for user IDs and product interaction. Reconcile the finished analytics implementation and its retention/deletion behavior with the public privacy policy before submission; the older policy's statement that only billing records are kept is no longer sufficient if analytics ships.
+Concurrent analytics work appeared during this audit (`analytics_events`, currently account-linked run outcomes). The manifest declares analytics as a purpose for user IDs and product interaction, and the public policy now describes first-party product activity and local AI consent. Reconcile the finished analytics implementation and its retention/deletion behavior with those disclosures before submission.
 
 ## App Store Connect package
 
