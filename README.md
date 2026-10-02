@@ -175,6 +175,15 @@ npx wrangler deploy --dry-run --outdir /tmp/iphoneautomations-review-worker --en
 node scripts/review-smoke.mjs
 ```
 
+Standalone native consent and purchase-concurrency checks (no credentials or payments):
+
+```sh
+xcrun swiftc ios/AdvancedAutomations/Services/AIConsent.swift test/ai-consent.swift -o /tmp/iphoneautomations-consent-test
+/tmp/iphoneautomations-consent-test
+xcrun swiftc ios/AdvancedAutomations/Services/PurchaseDeliveryQueue.swift test/purchase-delivery.swift -o /tmp/iphoneautomations-purchase-delivery-test
+/tmp/iphoneautomations-purchase-delivery-test
+```
+
 ## Mockups with GPT-Image-2
 
 ```bash

@@ -9,7 +9,7 @@ final class PurchaseStore: ObservableObject {
     @Published var message: String?
     private var configuration: API.StoreConfiguration?
     private var configurationKey: String?
-    private var delivering: Set<UInt64> = []
+    private let deliveryQueue = PurchaseDeliveryQueue()
     private var updates: Task<Void, Never>?
 
     init() {
@@ -74,18 +74,17 @@ final class PurchaseStore: ObservableObject {
         guard case .verified(let transaction) = result else {
             throw APIError(message: "Apple could not verify the purchase. No credit has been added.")
         }
-        guard !delivering.contains(transaction.id) else { return }
-        delivering.insert(transaction.id)
-        defer { delivering.remove(transaction.id) }
-        let key = Keychain.apiKey
-        guard key != nil else { throw APIError(message: "Sign in to the account used for this purchase to receive its credit.") }
-        let config = try await API.shared.storeConfiguration()
-        guard key == Keychain.apiKey, transaction.appAccountToken == config.app_account_token else {
-            throw APIError(message: "A pending purchase belongs to another account. Sign in to the account that bought it to receive the credit.")
+        try await deliveryQueue.deliver(id: transaction.id) {
+            let key = Keychain.apiKey
+            guard key != nil else { throw APIError(message: "Sign in to the account used for this purchase to receive its credit.") }
+            let config = try await API.shared.storeConfiguration()
+            guard key == Keychain.apiKey, transaction.appAccountToken == config.app_account_token else {
+                throw APIError(message: "A pending purchase belongs to another account. Sign in to the account that bought it to receive the credit.")
+            }
+            // Finish only after the server verifies with Apple and durably records the
+            // credit (or refund). Failed delivery remains unfinished for the next launch.
+            try await API.shared.deliverPurchase(result.jwsRepresentation)
+            await transaction.finish()
         }
-        // Finish only after the server verifies with Apple and durably records the
-        // credit (or refund). Failed delivery remains unfinished for the next launch.
-        try await API.shared.deliverPurchase(result.jwsRepresentation)
-        await transaction.finish()
     }
 }
