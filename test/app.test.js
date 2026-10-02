@@ -201,12 +201,20 @@ test('photo, JSON and audio shortcuts', async () => {
   const billing = createBilling(db, { stripeKey: '' });
   await billing.fulfillCheckout({ id: 'cs_test_3', payment_status: 'paid', metadata: { user_id: '1', credit_micros: '1000000' } });
   const auth = { authorization: `Bearer ${key}` };
-  const run = (slug, body) => req(`/api/v1/run/${slug}`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const run = (slug, body) => req(`/api/v1/run/${slug}`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ recipe_version: 2, ...body }) });
 
   // Shortcuts' Base64 Encode wraps lines; the photo goes up as a data URL and isn't held to the
   // text size limit. The JSON answer comes back clean, without false or empty keys.
   ai.response = 'Sure! {"meal": "Pad thai", "calories": 650, "protein": 24, "carbs": 80, "fat": 22, "note": ""} Enjoy.';
   const photo = `/9j/${'A'.repeat(76)}\n${'B'.repeat(300_000)}`;
+  for (const version of [undefined, 1, '2']) {
+    const outdated = await run('snap-calories', { image: photo, recipe_version: version });
+    assert.equal(outdated.status, 426);
+    const failure = await outdated.json();
+    assert.equal(failure.text, undefined);
+    assert.equal(failure.action_url, 'http://localhost/automations/snap-calories/install');
+  }
+  assert.equal(ai.calls.length, 0, 'obsolete shortcuts must not spend inference credit');
   let res = await run('snap-calories', { input: 'Photo of a meal', image: photo });
   assert.equal(res.status, 200);
   assert.deepEqual(JSON.parse((await res.json()).text), { meal: 'Pad thai', calories: 650, protein: 24, carbs: 80, fat: 22 });
@@ -218,7 +226,22 @@ test('photo, JSON and audio shortcuts', async () => {
   ai.response = 'I don’t see any food.';
   res = await run('snap-calories', { input: 'x', image: photo });
   assert.equal(res.status, 422);
-  assert.match((await res.json()).error, /Couldn’t spot any food/);
+  const failedMeal = await res.json();
+  assert.match(failedMeal.error, /complete nutrition estimate/);
+  assert.equal(failedMeal.text, undefined, 'rejected output must stop the shortcut');
+  for (const invalid of [
+    {}, { meal: 'Soup' }, { meal: 'Soup', calories: '100', protein: 5, carbs: 8, fat: 6 },
+    { meal: 'Soup', calories: -1, protein: 5, carbs: 8, fat: 6 },
+    { meal: 'Soup', calories: 1e30, protein: 5, carbs: 8, fat: 6 },
+    { meal: 'Soup', calories: 100, protein: null, carbs: 8, fat: 6 },
+    { meal: '', calories: 100, protein: 5, carbs: 8, fat: 6 },
+    { meal: 'Soup', calories: 100, protein: 5, carbs: 8.5, fat: 6 },
+  ]) {
+    ai.response = JSON.stringify(invalid);
+    const bad = await run('snap-calories', { input: 'Meal', image: photo });
+    assert.equal(bad.status, 422);
+    assert.equal((await bad.json()).text, undefined);
+  }
 
   // Summarize My Meeting Notes posts the recording itself: Whisper transcribes, Llama writes the notes, and
   // both are billed (2 minutes x $0.00051 x 1.5 = $0.00153, plus the notes).

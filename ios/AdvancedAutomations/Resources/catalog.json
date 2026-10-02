@@ -447,12 +447,12 @@
     {
       "slug": "snap-calories",
       "name": "Log My Meal",
-      "tagline": "Photograph your plate. Calories, protein, carbs and fat go straight into Apple Health.",
+      "tagline": "Estimate nutrition from a meal photo, then review before saving to Apple Health.",
       "category": "Capture",
       "icon": "apple",
       "color": "lime",
       "trigger": "Action Button or Home Screen",
-      "runTip": "Run it and snap your meal, or share a food photo to it. The first run asks permission to write to Health.",
+      "runTip": "Take or share a meal photo. Review the estimated calories and macros, then confirm to save or cancel without writing to Health. Photo estimates can be inaccurate and are not medical advice. Health permissions are requested separately.",
       "inside": [
         {
           "action": "Take Photo",
@@ -467,12 +467,15 @@
           "detail": "Sends the photo to our API with your key."
         },
         {
+          "action": "Review estimate",
+          "detail": "See all four values. Cancel stops without saving anything."
+        },
+        {
           "action": "Log Health Sample",
-          "detail": "Dietary energy, protein, carbohydrates and fat."
+          "detail": "Only after confirmation: estimated dietary energy, protein, carbohydrates and fat."
         }
       ],
       "typicalCost": 0.00063,
-      "icloudUrl": "https://www.icloud.com/shortcuts/6527eff8f4e54a40a5b7f7ce2222579c",
       "tags": [
         "health",
         "food",

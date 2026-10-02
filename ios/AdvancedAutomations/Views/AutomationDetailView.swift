@@ -200,7 +200,9 @@ private struct GetButton: View {
             // Kept off other devices and cleared after a few minutes.
             UIPasteboard.general.setItems([[UTType.plainText.identifier: key]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(300)])
             status = "Key copied. Paste it when Shortcuts asks."
-            openURL(automation.icloudUrl ?? API.page("download/\(automation.slug)"))
+            // A cached catalog may still contain the old meal shortcut's iCloud
+            // link. Always download its current, review-before-Health version.
+            openURL(automation.slug == "snap-calories" ? API.page("download/\(automation.slug)") : automation.icloudUrl ?? API.page("download/\(automation.slug)"))
         } catch {
             status = error.localizedDescription
         }

@@ -66,6 +66,18 @@ function jsonObject(text) {
 }
 
 const FORMATS = {
+  // Conservative single-entry engineering limits, not a claim of clinical
+  // accuracy. Never coerce strings, missing fields or pathological model output
+  // into Health quantities. The shortcut still requires a person's confirmation.
+  meal: (text) => {
+    const value = jsonObject(text);
+    if (typeof value?.meal !== 'string' || !value.meal.trim() || value.meal.length > 120) return null;
+    const caps = { calories: 10_000, protein: 1_000, carbs: 1_000, fat: 1_000 };
+    for (const [key, cap] of Object.entries(caps)) {
+      if (!Number.isSafeInteger(value[key]) || value[key] < 0 || value[key] > cap) return null;
+    }
+    return JSON.stringify({ meal: value.meal.trim(), ...Object.fromEntries(Object.keys(caps).map(key => [key, value[key]])) });
+  },
   // Keys that are false or empty are dropped, so a shortcut can test them with a plain If.
   json: (text) => {
     const value = jsonObject(text);
@@ -273,7 +285,12 @@ export function createInference(billing, { ai, gateway } = {}) {
     // The shortcut feeds the answer straight into Get Dictionary, so hand back
     // exactly that, or a readable error. The run is still charged: the model did the work.
     const clean = FORMATS[automation.format](out.json.text);
-    if (!clean) return { status: 422, json: { ...out.json, error: automation.formatError } };
+    if (!clean) {
+      // Installed shortcuts branch on presence of text, not HTTP status. Keeping
+      // rejected model text here would allow them to proceed with invalid data.
+      const { text: _discarded, ...billing } = out.json;
+      return { status: 422, json: { ...billing, error: automation.formatError } };
+    }
     return { status: 200, json: { ...out.json, text: clean } };
   }
 

@@ -191,6 +191,9 @@ app.post('/api/v1/run/:slug', async (c) => {
   } else {
     const { body, error } = await readJson(c);
     if (error) return c.json({ ...error[0], action_url: page }, error[1]);
+    if (a.recipeVersion && body.recipe_version !== a.recipeVersion) {
+      return c.json({ error: 'Update this shortcut before running it again. The new version lets you review nutrition estimates before saving to Health.', action_url: `${page}/install` }, 426);
+    }
     result = await (a.makesImage ? inference.makeImage(user, a, body) : a.picksChoice ? inference.pickChoice(user, a, body) : inference.runAutomation(user, a, body));
   }
   const { status, json } = result;

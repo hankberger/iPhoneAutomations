@@ -130,18 +130,20 @@ Each call reserves its worst-case cost first, then charges actual token usage an
 
 ## Shortcut files
 
-Each automation in `src/catalog.js` has a source file at `shortcuts/<slug>.cherri` in [Cherri](https://github.com/electrikmilk/cherri), a language that compiles to Shortcuts. `npm run shortcuts` wraps each one with the key import question and the API call, compiles it, signs it (through RoutineHub's HubSign service when not on a Mac) and writes `public/shortcuts/<slug>.shortcut`. Commit the signed files.
+Each automation in `src/catalog.js` has a source file at `shortcuts/<slug>.cherri` in [Cherri](https://github.com/electrikmilk/cherri), a language that compiles to Shortcuts. `npm run shortcuts` wraps each one with the key import question and the API call, compiles it, signs it and writes `public/shortcuts/<slug>.shortcut`. On macOS, signing uses Apple's local `shortcuts sign` command without falling back to a third-party service. Other platforms use Cherri's configured signing service; building Log My Meal currently requires macOS `plutil` for its compiled-action validation. Commit the signed files.
 
-Stock Cherri records the wrong action for import questions and can't write the quantities Log Health Sample takes, so build it with the two patches in `scripts/` (made against commit d96eee9):
+The tested compiler revision includes the import-question index fix but still needs the Health quantity patch. Build it from the directory beside this repository:
 
 ```sh
 git clone https://github.com/electrikmilk/cherri && cd cherri
-git checkout d96eee9
-git apply ../iPhoneAutomations/scripts/cherri-import-questions.patch ../iPhoneAutomations/scripts/cherri-health-quantity.patch
-go build -o ~/bin/cherri .
+git checkout a66db15b7f247f3121726c2a2b72becfeef3d96b
+git apply ../iPhoneAutomations/scripts/cherri-health-quantity.patch
+go build -o ./cherri .
 ```
 
 iOS only imports straight into Shortcuts from an iCloud share link: `shortcuts://import-shortcut?url=` rejects every other URL. So the install page downloads the signed file from `/download/<slug>` (named after the shortcut) and Safari hands it to Shortcuts. For one-tap installs, add each shortcut on an iPhone, tap Share, then Copy iCloud Link, and put the link in the automation's `icloudUrl` in `src/catalog.js`. Make a new link whenever the .cherri file changes.
+
+Set `CHERRI` to that binary's absolute path when running the build. The older `scripts/cherri-import-questions.patch` is only for older compiler revisions. Set `SHORTCUT_AUDIT_DIR` to retain compiled XML for inspection. Log My Meal's build verifies the cancellable estimate review and all four subsequent Health quantities, and updates `test/fixtures/meal-workflow.json` with source/artifact hashes. Commit that fixture with the signed file. Its `recipe_version: 2` request is mandatory; older installed versions receive an upgrade error without inference charges. The obsolete iCloud link has been removed. Structural tests do not establish nutrition accuracy or replace device testing.
 
 Installed shortcuts call `POST /api/v1/run/<slug>` with `{ "input": "...", "choice": "...", "image": "<base64 JPEG>" }` (choice and image only where the automation uses them). Audio automations such as Summarize My Meeting Notes post the recording itself as the body instead; it is transcribed with Whisper, billed per minute, and the notes come back with the transcript underneath. The prompt and model come from the catalog, so they can change without anyone reinstalling. Errors return `{ error, action_url }`: the shortcut shows the message and offers to open the link (top up, or add the shortcut again with a fresh key). Shortcuts point at `https://iphoneadvanced.com` unless built with `SHORTCUT_API_BASE`.
 
