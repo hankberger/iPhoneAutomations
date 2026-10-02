@@ -8,6 +8,8 @@ import { findAutomation, CATEGORIES, publicCatalog } from './catalog.js';
 import { MICROS } from './billing.js';
 import * as views from './views.js';
 import * as legal from './legal.js';
+import { dashboardData, isAdmin, recordEvent } from './analytics.js';
+import { admin } from './admin-view.js';
 
 const FORM_LIMIT = 20 * 1024;
 const JSON_LIMIT = 1024 * 1024;
@@ -73,6 +75,7 @@ const loadUser = async (c, next) => {
   const { auth } = c.get('ctx');
   c.set('sessionToken', getCookie(c, SESSION_COOKIE));
   c.set('user', await auth.sessionUser(c.get('sessionToken')));
+  if (c.get('user')) c.get('user').is_admin = isAdmin(c.get('user'), c.env);
   await next();
 };
 
@@ -97,6 +100,16 @@ const requireUser = async (c, next) => {
 
 const safeNext = (n) => (typeof n === 'string' && /^\/(?!\/)/.test(n) ? n : '/account');
 
+const track = (c, name, event) => recordEvent(c.env.DB, name, event);
+const requireAdmin = async (c, next) => {
+  c.header('Cache-Control', 'private, no-store');
+  c.header('X-Robots-Tag', 'noindex, nofollow');
+  const user = c.get('user');
+  if (!user) return c.redirect('/login?next=/admin', 302);
+  if (!isAdmin(user, c.env)) return c.text('Not found.', 404);
+  await next();
+};
+
 // Stripe needs the raw body to verify the signature.
 app.post('/webhooks/stripe', async (c) => {
   try {
@@ -109,7 +122,28 @@ app.post('/webhooks/stripe', async (c) => {
 
 // Inference API for Shortcuts. Callers authenticate with their own aa_live_ key;
 // the Workers AI binding bills our Cloudflare account and no token leaves the server.
-const bearerUser = (c) => c.get('ctx').auth.apiKeyUser((c.req.header('authorization') || '').replace(/^Bearer\s+/i, '').trim());
+const bearerUser = async (c) => {
+  const user = await c.get('ctx').auth.apiKeyUser((c.req.header('authorization') || '').replace(/^Bearer\s+/i, '').trim());
+  c.set('apiUser', user);
+  return user;
+};
+
+// Record the final request outcome, including parse/validation errors and exceptions.
+// Multi-model audio requests count once. Invalid keys are excluded to avoid bot traffic.
+app.use('/api/v1/*', async (c, next) => {
+  const started = Date.now();
+  await next();
+  const path = new URL(c.req.url).pathname;
+  if (c.req.method !== 'POST' || !/^\/api\/v1\/(run\/[^/]+|generate|ai\/run\/.+)$/.test(path)) return;
+  const user = c.get('apiUser');
+  if (!user) return;
+  const shortcut = path.startsWith('/api/v1/run/');
+  const slug = shortcut ? (findAutomation(c.req.param('slug'))?.slug || 'retired-shortcut') : path.endsWith('/generate') ? 'custom-api' : 'raw-api';
+  await track(c, c.res.status === 200 ? 'run_succeeded' : 'run_failed', {
+    userId: user.id, slug, status: c.res.status, durationMs: Math.max(0, Date.now() - started),
+    source: user.can_mint ? 'iphone-app' : shortcut ? 'shortcut-key' : 'api',
+  });
+});
 
 // Returns { body } or { error: [json, status] }.
 async function readJson(c) {
@@ -140,10 +174,10 @@ app.post('/api/v1/ai/run/:model{.+}', api((c, user, body) => c.get('ctx').infere
 // open `action_url`, so both are written for the person holding the phone.
 app.post('/api/v1/run/:slug', async (c) => {
   const { appUrl, inference } = c.get('ctx');
+  const user = await bearerUser(c);
   const a = findAutomation(c.req.param('slug'));
   if (!a) return c.json({ error: 'This shortcut has been retired. Tap OK to find its replacement.', action_url: `${appUrl}/automations` }, 404);
   const page = `${appUrl}/automations/${a.slug}`;
-  const user = await bearerUser(c);
   if (!user) return c.json({ error: 'This shortcut’s key isn’t working. Tap OK to add it again with a fresh key.', action_url: page }, 401);
   let result;
   if (a.audio) {
@@ -200,6 +234,7 @@ app.get('/automations/:slug/install', requireUser, async (c) => {
   const { auth, billing, appUrl } = c.get('ctx');
   const user = c.get('user');
   const [key, balance] = await Promise.all([auth.createApiKey(user.id, a.name), billing.balance(user.id)]);
+  await track(c, 'install_started', { userId: user.id, slug: a.slug, source: 'web' });
   c.header('Cache-Control', 'no-store');
   return c.html(views.install({ user, a, key, balance, fileUrl: `${appUrl}/download/${a.slug}` }));
 });
@@ -221,6 +256,14 @@ app.get('/download/:slug', async (c) => {
 app.get('/pricing', (c) => c.html(views.pricing({ user: c.get('user') })));
 app.get('/terms', (c) => c.html(legal.terms({ user: c.get('user') })));
 app.get('/privacy', (c) => c.html(legal.privacy({ user: c.get('user') })));
+app.get('/admin', requireAdmin, async (c) => {
+  return c.html(admin({ user: c.get('user'), data: await dashboardData(c.env.DB, c.req.query('days')) }));
+});
+app.get('/admin/export', requireAdmin, async (c) => {
+  const data = await dashboardData(c.env.DB, c.req.query('days'));
+  c.header('Content-Disposition', `attachment; filename="analytics-${data.days}d.json"`);
+  return c.json(data);
+});
 app.get('/support', (c) => c.html(legal.support({ user: c.get('user') })));
 
 // Auth
@@ -235,6 +278,7 @@ for (const mode of ['login', 'signup']) {
     const result = await c.get('ctx').auth[mode](creds.email, creds.password);
     if (result.error) return render(mode === 'login' ? 401 : 409, result.error);
     await setSession(c, result.userId);
+    await track(c, mode === 'login' ? 'login' : 'signup', { userId: result.userId });
     return c.redirect(safeNext(body.next), 303);
   });
 }
@@ -287,6 +331,7 @@ app.on(['GET', 'POST'], '/auth/:provider/callback', async (c) => {
   const result = await c.get('ctx').auth.oauthLogin(id, identity);
   if (result.error) return fail(400, result.error);
   await setSession(c, result.userId);
+  await track(c, result.created ? 'signup' : result.linked ? 'oauth_linked' : 'login', { userId: result.userId, source: id });
   if (result.linked) return c.redirect(`/account?linked=${id}${result.passwordDisabled ? '&password=off' : ''}`, 303);
   return c.redirect(safeNext(flow.next), 303);
 });

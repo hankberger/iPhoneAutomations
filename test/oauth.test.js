@@ -104,6 +104,8 @@ test('google sign-in creates an account, then signs back in by subject', async (
   res = await signIn('google', { sub: 'g-1', email: 'renamed@example.com', email_verified: true }, fake);
   assert.equal(res.status, 303);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM users').get().n, 1);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM analytics_events WHERE event_name='signup'").get().n, 1);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM analytics_events WHERE event_name='login'").get().n, 1);
 });
 
 test('apple sign-in signs a client secret and handles form_post', async () => {

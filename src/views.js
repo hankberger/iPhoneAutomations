@@ -35,7 +35,7 @@ export const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="current
 // Grid spark mark; same drawing as public/favicon.svg.
 const LOGO = '<svg class="mark" aria-hidden="true" viewBox="0 0 32 32"><rect x="1" y="1" width="13.5" height="13.5" rx="4" fill="#ff6b3d"/><path d="M24.75 .5c.8 4.9 2.35 6.45 7.25 7.25-4.9.8-6.45 2.35-7.25 7.25-.8-4.9-2.35-6.45-7.25-7.25 4.9-.8 6.45-2.35 7.25-7.25z" fill="#7c5cff"/><rect x="1" y="17.5" width="13.5" height="13.5" rx="4" fill="#10b981"/><rect x="17.5" y="17.5" width="13.5" height="13.5" rx="4" fill="#0ea5e9"/></svg>';
 
-export function layout({ title, user, body, active = '' }) {
+export function layout({ title, user, body, active = '', stylesheet = '' }) {
   const nav = (href, label) => `<a href="${href}"${active === href ? ' aria-current="page"' : ''}>${label}</a>`;
   return `<!doctype html>
 <html lang="en">
@@ -58,6 +58,7 @@ export function layout({ title, user, body, active = '' }) {
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/styles.css">
+${stylesheet ? `<link rel="stylesheet" href="${e(stylesheet)}">` : ''}
 </head>
 <body>
 <header class="site-header">
@@ -66,6 +67,7 @@ export function layout({ title, user, body, active = '' }) {
     <nav class="nav">
       ${nav('/automations', 'Shortcuts')}
       ${nav('/pricing', 'Pricing')}
+      ${user?.is_admin ? nav('/admin', 'Analytics') : ''}
       ${user ? `<a class="btn btn-sm" href="/account">Account</a>` : `<a class="btn btn-sm" href="/login">Log in</a>`}
     </nav>
   </div>

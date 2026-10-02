@@ -25,6 +25,43 @@ npm test
 
 The site runs without any keys. Top-up buttons and the API show a "not configured" state until they are set.
 
+## Admin analytics
+
+The private dashboard lives at `/admin`; its aggregate JSON export is `/admin/export`.
+Set `ADMIN_EMAILS` to a comma-separated allowlist of **verified** operator emails (sign
+in with Google or Apple), or `ADMIN_USER_IDS` to explicitly approved existing account
+IDs. An unverified email/password registration never grants admin access. Both routes
+require a browser session and send `private, no-store` and `noindex` headers.
+
+Apply migrations `0005_analytics.sql` and `0006_analytics_quality.sql` before deploying.
+For production, use `npx wrangler secret put ADMIN_EMAILS` and sign in with that account.
+The Analytics navigation link appears only for authorized operators.
+
+The primary KPI is **weekly repeat users**: people with successful results on at least
+two distinct days in the last seven complete UTC days. Supporting KPIs cover 7-day
+activation, week-1/week-4 retention, repeat-use rate, run success, workflow adoption,
+credit blocks, successful-request P95 latency, and paid conversion. All rates show
+denominators. Cohorts use signup-relative age and exclude immature users and users who
+joined before instrumentation. The 7-day filter may not yet have mature signup cohorts;
+use 30/90 days to inspect retention. The dashboard explains these definitions in place.
+
+Purchased credit is face value from Stripe live checkouts and Apple production
+transactions, not revenue or profit. Free/manual credit and sandbox purchases are
+excluded. Today is shown separately from complete-day period comparisons. Comparisons
+are withheld until enough event history exists; old billing rows are not reconstructed
+as successful requests. Operator/test accounts are currently included in engagement.
+
+Telemetry records only the account ID, workflow, credential type, final status,
+duration and timestamp. Authenticated malformed/failed requests are included; invalid
+keys and unrelated API endpoints are excluded. Multi-model audio requests count once.
+No prompt, uploaded media, generated output, raw error, or key is stored. Event writes
+are best-effort and log a generic failure without disrupting the product.
+
+Run `node scripts/analytics-preview.mjs` for a synthetic, in-memory preview on
+`http://127.0.0.1:8790` (`/empty` exercises no-history states). It never contacts production
+or uses its credentials. `npm test` includes boundary, cohort, billing, telemetry and
+admin-access regression tests.
+
 ## Deploy
 
 ```bash

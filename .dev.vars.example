@@ -14,3 +14,6 @@ APPLE_TEAM_ID=
 APPLE_KEY_ID=
 # Contents of the .p8 file; \n escapes are fine on one line.
 APPLE_PRIVATE_KEY=
+# Private analytics operators: verified Google/Apple emails, or approved existing IDs.
+ADMIN_EMAILS=
+ADMIN_USER_IDS=
