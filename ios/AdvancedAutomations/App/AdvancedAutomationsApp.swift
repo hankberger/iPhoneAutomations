@@ -4,7 +4,9 @@ import SwiftUI
 struct AdvancedAutomationsApp: App {
     @StateObject private var catalog = CatalogStore()
     @StateObject private var session = Session()
+    @StateObject private var purchases = PurchaseStore()
     @State private var browsing = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -18,7 +20,16 @@ struct AdvancedAutomationsApp: App {
             .animation(.default, value: session.isSignedIn)
             .environmentObject(catalog)
             .environmentObject(session)
+            .environmentObject(purchases)
             .task { await catalog.refresh() }
+            .task(id: session.isSignedIn) {
+                if session.isSignedIn { await purchases.retryPending(); await session.refreshBalance() }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active && session.isSignedIn {
+                    Task { await purchases.retryPending(); await session.refreshBalance() }
+                }
+            }
         }
     }
 

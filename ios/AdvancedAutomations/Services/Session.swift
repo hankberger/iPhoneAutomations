@@ -12,10 +12,15 @@ final class Session: ObservableObject {
 
     static let callbackScheme = "iphoneadvanced"
 
-    func connect(using auth: WebAuthenticationSession) async throws {
+    func connect(using auth: WebAuthenticationSession, provider: String? = nil) async throws {
         let state = UUID().uuidString
         var url = API.page("app/connect")
         url.append(queryItems: [URLQueryItem(name: "state", value: state)])
+        if let provider {
+            let next = url.path + "?" + (url.query ?? "")
+            url = API.page("auth/\(provider)")
+            url.append(queryItems: [URLQueryItem(name: "next", value: next)])
+        }
         // A shared session reuses the person's Safari sign-in, so most people just tap Connect.
         let callback = try await auth.authenticate(using: url, callbackURLScheme: Self.callbackScheme, preferredBrowserSession: .shared)
         let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []

@@ -56,8 +56,8 @@ struct WelcomeView: View {
                     .multilineTextAlignment(.center)
 
                 HStack(spacing: 16) {
-                    Button("Terms") { openURL(API.page("terms")) }
-                    Button("Privacy") { openURL(API.page("privacy")) }
+                    Button("Terms") { openURL(API.page("app/terms")) }
+                    Button("Privacy") { openURL(API.page("app/privacy")) }
                 }
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)

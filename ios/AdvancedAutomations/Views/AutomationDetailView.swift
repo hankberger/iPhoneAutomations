@@ -176,7 +176,7 @@ private struct GetButton: View {
             .disabled(working)
 
             Text(status ?? (automation.icloudUrl == nil
-                ? "Opens the install page on iphoneadvanced.com."
+                ? "Copies a key, then opens the shortcut file in Safari. Paste the key when importing into Shortcuts."
                 : "Copies a key for this shortcut and opens Shortcuts. Paste it when asked, then tap Add Shortcut."))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -193,10 +193,6 @@ private struct GetButton: View {
             status = "Open Account → AI Privacy and review data sharing before adding AI shortcuts."
             return
         }
-        guard let icloud = automation.icloudUrl else {
-            openURL(API.page("automations/\(automation.slug)/install"))
-            return
-        }
         working = true
         defer { working = false }
         do {
@@ -204,7 +200,7 @@ private struct GetButton: View {
             // Kept off other devices and cleared after a few minutes.
             UIPasteboard.general.setItems([[UTType.plainText.identifier: key]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(300)])
             status = "Key copied. Paste it when Shortcuts asks."
-            openURL(icloud)
+            openURL(automation.icloudUrl ?? API.page("download/\(automation.slug)"))
         } catch {
             status = error.localizedDescription
         }

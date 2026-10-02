@@ -7,6 +7,9 @@ struct AccountView: View {
     @Environment(\.webAuthenticationSession) private var webAuth
     @State private var error: String?
     @State private var signingIn = false
+    @State private var confirmingDeletion = false
+    @State private var deleting = false
+    @State private var needsAppleSignIn = false
 
     var body: some View {
         NavigationStack {
@@ -28,14 +31,25 @@ struct AccountView: View {
                         Text(error).font(.footnote).foregroundStyle(.secondary)
                         Button("Retry balance") { Task { await session.refreshBalance() } }
                     }
-                    // Credit is bought on the site, like the rest of the account.
-                    Button("Top up on iphoneadvanced.com") { openURL(API.page("account").withFragment("balance")) }
+                    NavigationLink("Add credit") { CreditStoreView() }
                 }
                 SwiftUI.Section {
-                    Button("Keys and history") { openURL(API.page("account")) }
+                    NavigationLink("Keys and history") { AccountDetailsView() }
                     Button("Sign out", role: .destructive) { session.signOut() }
+                        .disabled(deleting)
+                    Button(deleting ? "Deleting account…" : "Delete account", role: .destructive) { confirmingDeletion = true }
+                        .disabled(deleting)
+                    if needsAppleSignIn {
+                        Button("Reconnect Sign in with Apple") {
+                            Task {
+                                do { try await session.connect(using: webAuth, provider: "apple"); needsAppleSignIn = false; error = nil }
+                                catch { self.error = error.localizedDescription }
+                            }
+                        }
+                    }
+                    if let error { Text(error).font(.footnote).foregroundStyle(.red) }
                 } footer: {
-                    Text("Signing out forgets this phone’s key. Revoke it under Keys to turn it off everywhere.")
+                    Text("Signing out forgets this phone’s key. Deleting your account permanently removes account data, invalidates every key and forfeits remaining credit. It does not request an Apple refund.")
                 }
                 } else {
                     SwiftUI.Section {
@@ -56,22 +70,26 @@ struct AccountView: View {
                 SwiftUI.Section {
                     NavigationLink("AI Privacy") { AIPrivacyView() }
                     Link("Contact Support", destination: URL(string: "mailto:support@iphoneadvanced.com")!)
-                    Button("Pricing") { openURL(API.page("pricing")) }
-                    Button("Terms of Service") { openURL(API.page("terms")) }
-                    Button("Privacy Policy") { openURL(API.page("privacy")) }
+                    Button("Terms of Service") { openURL(API.page("app/terms")) }
+                    Button("Privacy Policy") { openURL(API.page("app/privacy")) }
                 }
             }
             .navigationTitle("Account")
             .task { await session.refreshBalance() }
             .refreshable { await session.refreshBalance() }
+            .confirmationDialog("Permanently delete your account?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
+                Button("Delete account and remaining credit", role: .destructive) {
+                    Task {
+                        deleting = true
+                        defer { deleting = false }
+                        do { try await API.shared.deleteAccount(); session.signOut() }
+                        catch { self.error = error.localizedDescription; needsAppleSignIn = (error as? APIError)?.status == 409 }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This cannot be undone. All your shortcuts will lose access. Payment identifiers are retained without account linkage to prevent replay. For Apple purchase refunds, use Add credit → Request an Apple refund before deleting.")
+            }
         }
-    }
-}
-
-private extension URL {
-    func withFragment(_ fragment: String) -> URL {
-        var c = URLComponents(url: self, resolvingAgainstBaseURL: false)!
-        c.fragment = fragment
-        return c.url!
     }
 }
