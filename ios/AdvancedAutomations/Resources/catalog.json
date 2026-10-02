@@ -31,7 +31,19 @@
         }
       ],
       "typicalCost": 0.001109,
-      "block": true
+      "block": true,
+      "tags": [
+        "text",
+        "transform",
+        "general purpose"
+      ],
+      "input": "Text",
+      "output": "Text",
+      "pairWith": [
+        "summarize-anything",
+        "smart-reminders",
+        "reply-drafter"
+      ]
     },
     {
       "slug": "ask-about-image",
@@ -57,7 +69,19 @@
         }
       ],
       "typicalCost": 0.001893,
-      "block": true
+      "block": true,
+      "tags": [
+        "photo",
+        "screenshot",
+        "understand"
+      ],
+      "input": "Photo or screenshot",
+      "output": "Text",
+      "pairWith": [
+        "pull-out-details",
+        "explain-this",
+        "scam-check"
+      ]
     },
     {
       "slug": "transcribe-audio",
@@ -83,7 +107,18 @@
         }
       ],
       "typicalCost": 0.003826,
-      "block": true
+      "block": true,
+      "tags": [
+        "voice",
+        "recording",
+        "audio"
+      ],
+      "input": "Audio",
+      "output": "Text",
+      "pairWith": [
+        "meeting-notes",
+        "voice-to-notes"
+      ]
     },
     {
       "slug": "pull-out-details",
@@ -109,7 +144,18 @@
         }
       ],
       "typicalCost": 0.000714,
-      "block": true
+      "block": true,
+      "tags": [
+        "extract",
+        "structured data",
+        "photo"
+      ],
+      "input": "Text or photo",
+      "output": "Dictionary",
+      "pairWith": [
+        "receipt-reader",
+        "smart-reminders"
+      ]
     },
     {
       "slug": "pick-a-category",
@@ -131,7 +177,18 @@
         }
       ],
       "typicalCost": 0.000032,
-      "block": true
+      "block": true,
+      "tags": [
+        "classify",
+        "routing",
+        "logic"
+      ],
+      "input": "Text and choices",
+      "output": "One choice",
+      "pairWith": [
+        "smart-reminders",
+        "ask-ai"
+      ]
     },
     {
       "slug": "make-an-image",
@@ -157,7 +214,17 @@
         }
       ],
       "typicalCost": 0.00915,
-      "block": true
+      "block": true,
+      "tags": [
+        "create",
+        "visual",
+        "photo"
+      ],
+      "input": "Description",
+      "output": "Image",
+      "pairWith": [
+        "ask-ai"
+      ]
     },
     {
       "slug": "explain-this",
@@ -181,7 +248,18 @@
           "action": "Show Result"
         }
       ],
-      "typicalCost": 0.001197
+      "typicalCost": 0.001197,
+      "tags": [
+        "understand",
+        "documents",
+        "share sheet"
+      ],
+      "input": "Text, photo or PDF",
+      "output": "Plain-English explanation",
+      "pairWith": [
+        "pull-out-details",
+        "scam-check"
+      ]
     },
     {
       "slug": "summarize-anything",
@@ -207,7 +285,17 @@
         }
       ],
       "typicalCost": 0.00013,
-      "icloudUrl": "https://www.icloud.com/shortcuts/bab137385ec341bf8fe39c3e341c85af"
+      "icloudUrl": "https://www.icloud.com/shortcuts/bab137385ec341bf8fe39c3e341c85af",
+      "tags": [
+        "summarize",
+        "reading",
+        "share sheet"
+      ],
+      "input": "Article, email or note",
+      "output": "Short summary",
+      "pairWith": [
+        "smart-reminders"
+      ]
     },
     {
       "slug": "reply-drafter",
@@ -232,7 +320,17 @@
         }
       ],
       "typicalCost": 0.000639,
-      "icloudUrl": "https://www.icloud.com/shortcuts/021815833cfe459d94a1bf40bdf272e8"
+      "icloudUrl": "https://www.icloud.com/shortcuts/021815833cfe459d94a1bf40bdf272e8",
+      "tags": [
+        "write",
+        "messages",
+        "clipboard"
+      ],
+      "input": "Message text",
+      "output": "Draft reply",
+      "pairWith": [
+        "tone-shifter"
+      ]
     },
     {
       "slug": "tone-shifter",
@@ -260,7 +358,18 @@
           "detail": "And shows the rewrite."
         }
       ],
-      "typicalCost": 0.000086
+      "typicalCost": 0.000086,
+      "tags": [
+        "write",
+        "rewrite",
+        "share sheet"
+      ],
+      "input": "Text",
+      "output": "Rewritten text",
+      "pairWith": [
+        "reply-drafter",
+        "translate-selection"
+      ]
     },
     {
       "slug": "voice-to-notes",
@@ -285,7 +394,18 @@
           "detail": "In Apple Notes."
         }
       ],
-      "typicalCost": 0.001065
+      "typicalCost": 0.001065,
+      "tags": [
+        "capture",
+        "voice",
+        "notes"
+      ],
+      "input": "Dictation",
+      "output": "Apple Note",
+      "pairWith": [
+        "transcribe-audio",
+        "smart-reminders"
+      ]
     },
     {
       "slug": "meeting-notes",
@@ -311,7 +431,18 @@
         }
       ],
       "typicalCost": 0.026939,
-      "icloudUrl": "https://www.icloud.com/shortcuts/1509e3f1ec944e04a872b4a5ca8bc61e"
+      "icloudUrl": "https://www.icloud.com/shortcuts/1509e3f1ec944e04a872b4a5ca8bc61e",
+      "tags": [
+        "meetings",
+        "recording",
+        "notes"
+      ],
+      "input": "Meeting audio",
+      "output": "Notes and actions",
+      "pairWith": [
+        "transcribe-audio",
+        "smart-reminders"
+      ]
     },
     {
       "slug": "snap-calories",
@@ -341,7 +472,17 @@
         }
       ],
       "typicalCost": 0.00063,
-      "icloudUrl": "https://www.icloud.com/shortcuts/6527eff8f4e54a40a5b7f7ce2222579c"
+      "icloudUrl": "https://www.icloud.com/shortcuts/6527eff8f4e54a40a5b7f7ce2222579c",
+      "tags": [
+        "health",
+        "food",
+        "photo"
+      ],
+      "input": "Meal photo",
+      "output": "Health sample",
+      "pairWith": [
+        "pull-out-details"
+      ]
     },
     {
       "slug": "smart-reminders",
@@ -371,7 +512,18 @@
         }
       ],
       "typicalCost": 0.000683,
-      "icloudUrl": "https://www.icloud.com/shortcuts/4371d481e3874f8eb8989e17d5d09157"
+      "icloudUrl": "https://www.icloud.com/shortcuts/4371d481e3874f8eb8989e17d5d09157",
+      "tags": [
+        "tasks",
+        "email",
+        "organize"
+      ],
+      "input": "Messy text or email",
+      "output": "Reminders",
+      "pairWith": [
+        "ask-ai",
+        "pull-out-details"
+      ]
     },
     {
       "slug": "receipt-reader",
@@ -399,7 +551,17 @@
           "detail": "Receipts.csv in iCloud Drive."
         }
       ],
-      "typicalCost": 0.000044
+      "typicalCost": 0.000044,
+      "tags": [
+        "receipts",
+        "money",
+        "photo"
+      ],
+      "input": "Receipt photo",
+      "output": "CSV row",
+      "pairWith": [
+        "pull-out-details"
+      ]
     },
     {
       "slug": "translate-selection",
@@ -426,7 +588,17 @@
           "action": "Show Result"
         }
       ],
-      "typicalCost": 0.000194
+      "typicalCost": 0.000194,
+      "tags": [
+        "translate",
+        "language",
+        "share sheet"
+      ],
+      "input": "Text",
+      "output": "Translated text",
+      "pairWith": [
+        "tone-shifter"
+      ]
     },
     {
       "slug": "scam-check",
@@ -451,7 +623,18 @@
         }
       ],
       "typicalCost": 0.000683,
-      "icloudUrl": "https://www.icloud.com/shortcuts/4573bf3182584465bd54100f328dfbc0"
+      "icloudUrl": "https://www.icloud.com/shortcuts/4573bf3182584465bd54100f328dfbc0",
+      "tags": [
+        "safety",
+        "messages",
+        "share sheet"
+      ],
+      "input": "Message, email or screenshot",
+      "output": "Risk assessment",
+      "pairWith": [
+        "ask-about-image",
+        "explain-this"
+      ]
     },
     {
       "slug": "morning-brief",
@@ -478,7 +661,17 @@
           "detail": "And shows the plan."
         }
       ],
-      "typicalCost": 0.00066
+      "typicalCost": 0.00066,
+      "tags": [
+        "calendar",
+        "planning",
+        "routine"
+      ],
+      "input": "Calendar and reminders",
+      "output": "Daily plan",
+      "pairWith": [
+        "smart-reminders"
+      ]
     }
   ]
 }

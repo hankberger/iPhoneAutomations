@@ -358,10 +358,36 @@ for (const a of AUTOMATIONS) {
   a.typicalCost = (a.makesImage ? imageMicros(a.model, ...IMAGE_MODELS[a.model].typicalTokens) : a.picksChoice ? jevMicros(500) : costMicros(a.model, ...a.typicalTokens) + (a.audio ? audioMicros(a.typicalMinutes) : 0)) / 1e6;
 }
 
+// Discovery metadata is deliberately separate from the prompts. It describes how a shortcut
+// fits into a person's workflow, which lets the clients build useful browse and composition UIs
+// without exposing implementation details or making every catalog entry carry verbose metadata.
+const DISCOVERY = {
+  'ask-ai': { tags: ['text', 'transform', 'general purpose'], input: 'Text', output: 'Text', pairWith: ['summarize-anything', 'smart-reminders', 'reply-drafter'] },
+  'ask-about-image': { tags: ['photo', 'screenshot', 'understand'], input: 'Photo or screenshot', output: 'Text', pairWith: ['pull-out-details', 'explain-this', 'scam-check'] },
+  'transcribe-audio': { tags: ['voice', 'recording', 'audio'], input: 'Audio', output: 'Text', pairWith: ['meeting-notes', 'voice-to-notes'] },
+  'pull-out-details': { tags: ['extract', 'structured data', 'photo'], input: 'Text or photo', output: 'Dictionary', pairWith: ['receipt-reader', 'smart-reminders'] },
+  'pick-a-category': { tags: ['classify', 'routing', 'logic'], input: 'Text and choices', output: 'One choice', pairWith: ['smart-reminders', 'ask-ai'] },
+  'make-an-image': { tags: ['create', 'visual', 'photo'], input: 'Description', output: 'Image', pairWith: ['ask-ai'] },
+  'explain-this': { tags: ['understand', 'documents', 'share sheet'], input: 'Text, photo or PDF', output: 'Plain-English explanation', pairWith: ['pull-out-details', 'scam-check'] },
+  'summarize-anything': { tags: ['summarize', 'reading', 'share sheet'], input: 'Article, email or note', output: 'Short summary', pairWith: ['smart-reminders'] },
+  'reply-drafter': { tags: ['write', 'messages', 'clipboard'], input: 'Message text', output: 'Draft reply', pairWith: ['tone-shifter'] },
+  'tone-shifter': { tags: ['write', 'rewrite', 'share sheet'], input: 'Text', output: 'Rewritten text', pairWith: ['reply-drafter', 'translate-selection'] },
+  'voice-to-notes': { tags: ['capture', 'voice', 'notes'], input: 'Dictation', output: 'Apple Note', pairWith: ['transcribe-audio', 'smart-reminders'] },
+  'meeting-notes': { tags: ['meetings', 'recording', 'notes'], input: 'Meeting audio', output: 'Notes and actions', pairWith: ['transcribe-audio', 'smart-reminders'] },
+  'snap-calories': { tags: ['health', 'food', 'photo'], input: 'Meal photo', output: 'Health sample', pairWith: ['pull-out-details'] },
+  'smart-reminders': { tags: ['tasks', 'email', 'organize'], input: 'Messy text or email', output: 'Reminders', pairWith: ['ask-ai', 'pull-out-details'] },
+  'receipt-reader': { tags: ['receipts', 'money', 'photo'], input: 'Receipt photo', output: 'CSV row', pairWith: ['pull-out-details'] },
+  'translate-selection': { tags: ['translate', 'language', 'share sheet'], input: 'Text', output: 'Translated text', pairWith: ['tone-shifter'] },
+  'scam-check': { tags: ['safety', 'messages', 'share sheet'], input: 'Message, email or screenshot', output: 'Risk assessment', pairWith: ['ask-about-image', 'explain-this'] },
+  'morning-brief': { tags: ['calendar', 'planning', 'routine'], input: 'Calendar and reminders', output: 'Daily plan', pairWith: ['smart-reminders'] },
+};
+
+for (const a of AUTOMATIONS) Object.assign(a, DISCOVERY[a.slug] ?? {});
+
 export const findAutomation = (slug) => AUTOMATIONS.find((a) => a.slug === slug);
 
 // What the iPhone app shows. Prompts, models and system messages stay on the server.
-const PUBLIC_FIELDS = ['slug', 'name', 'tagline', 'category', 'icon', 'color', 'trigger', 'runTip', 'inside', 'typicalCost', 'icloudUrl', 'block'];
+const PUBLIC_FIELDS = ['slug', 'name', 'tagline', 'category', 'icon', 'color', 'trigger', 'runTip', 'inside', 'typicalCost', 'icloudUrl', 'block', 'tags', 'input', 'output', 'pairWith'];
 export const publicCatalog = () => ({
   categories: CATEGORIES,
   automations: AUTOMATIONS.map((a) => Object.fromEntries(PUBLIC_FIELDS.filter((k) => a[k] !== undefined).map((k) => [k, a[k]]))),
