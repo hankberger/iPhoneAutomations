@@ -84,6 +84,36 @@ try {
   assert.equal(delivered.filter(Boolean).length, 1);
   assert.equal(await billing.balance(replacement.userId), 5000000);
   assert.equal((await billing.history(replacement.userId)).length, 1);
+  // Force the Apple/deletion interleaving against real D1, for new delivery and
+  // already-recorded refund state. These remain explicit Apple test doubles.
+  let raceNumber = 9000;
+  for (const existingPurchase of [false, true]) {
+    for (const notification of [false, true]) {
+      const transactionId = String(raceNumber++);
+      const account = await auth.signup(`race${transactionId}@example.invalid`, 'local race password');
+      const raceTx = { ...tx, transactionId, appAccountToken: await store.accountToken(account.userId) };
+      const client = { enabled: true, transaction: async () => ({ ...raceTx }), notification: async () => ({ notificationType: 'REFUND', data: { signedTransactionInfo: 'test-double' } }) };
+      if (existingPurchase) {
+        await createAppStore(db, {}, client).purchase(account.userId, 'test-double');
+        raceTx.revocationDate = 4000; raceTx.signedDate = 4000;
+      }
+      const raceDB = {
+        prepare: sql => db.prepare(sql),
+        batch: async statements => {
+          await db.prepare('DELETE FROM users WHERE id=?').bind(account.userId).run();
+          return db.batch(statements);
+        },
+      };
+      const raceStore = createAppStore(raceDB, {}, client);
+      if (notification) await raceStore.notification('test-double');
+      else await assert.rejects(raceStore.purchase(account.userId, 'test-double'), error => error.status === 410);
+      assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM ledger WHERE user_id=?').bind(account.userId).first()).n, 0);
+      const retained = await db.prepare('SELECT user_id FROM app_store_transactions WHERE id=?').bind(`Production:${transactionId}`).first();
+      if (existingPurchase) assert.equal(retained.user_id, null);
+      else assert.equal(retained, null);
+      assert.equal(await billing.balance(replacement.userId), 5000000);
+    }
+  }
   assert.deepEqual((await db.prepare('PRAGMA foreign_key_check').all()).results, []);
-  console.log('PASS: actual local workerd/D1 upgrade, account/consent routes, invalid Apple signatures, purchase/refund/reversal SQL, enabled test deletion, permanent IDs, concurrent signups, late Stripe delivery and late settlement');
+  console.log('PASS: actual local workerd/D1 upgrade, account/consent routes, invalid Apple signatures, purchase/refund/reversal SQL, enabled test deletion, permanent IDs, concurrent signups, late Stripe delivery, late settlement and Apple/deletion races');
 } finally { await mf.dispose(); }

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { memoryD1 } from './d1.js';
 import { createAppStore, appleStoreClient } from '../src/app-store.js';
+import { createAuth } from '../src/auth.js';
 
 async function fixture(env = {}) {
   const db = memoryD1();
@@ -67,6 +68,38 @@ test('refund before delivery and account deletion never resurrect a purchase', a
   await store.notification('verified');
   assert.equal(db.raw.prepare('SELECT user_id FROM app_store_transactions').get().user_id, null);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM users').get().n, 1);
+});
+
+test('account deletion between Apple verification and delivery never fails the database batch or credits a replacement', async () => {
+  for (const existingPurchase of [false, true]) {
+    for (const notification of [false, true]) {
+      const { store, tx, db } = await fixture();
+      if (existingPurchase) {
+        await store.purchase(1, 'verified');
+        tx.revocationDate = 2000;
+        tx.signedDate = 2000;
+      }
+      const batch = db.batch.bind(db);
+      let replacement;
+      db.batch = async statements => {
+        // Precisely interleave deletion after the service reads the original
+        // account/transaction but before its atomic delivery transaction begins.
+        db.batch = batch;
+        db.raw.exec('DELETE FROM users WHERE id=1');
+        replacement = await createAuth(db).signup('a@example.com', 'replacement test password');
+        return batch(statements);
+      };
+      if (notification) await store.notification('verified'); // Acknowledge safely.
+      else await assert.rejects(store.purchase(1, 'verified'), error => error.status === 410);
+      assert.ok(replacement.userId > 2);
+      assert.equal(db.raw.prepare('SELECT balance_micros FROM users WHERE id=?').get(replacement.userId).balance_micros, 0);
+      assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM ledger').get().n, 0);
+      const transactions = db.raw.prepare('SELECT user_id FROM app_store_transactions').all();
+      assert.equal(transactions.length, existingPurchase ? 1 : 0);
+      if (existingPurchase) assert.equal(transactions[0].user_id, null);
+      assert.deepEqual(db.raw.prepare('PRAGMA foreign_key_check').all(), []);
+    }
+  }
 });
 
 test('verification rejects forged signed payloads before any request to Apple or balance mutation', async () => {
