@@ -20,13 +20,15 @@ The app is **not ready to submit** while any release gate below remains open.
 | Health-related shortcuts | Locally signed Log My Meal v2 shows a cancellable estimate review before four Health writes; invalid output rejected; obsolete recipes receive an upgrade error | Test cancel/confirm and Health permissions on device; validate nutrition accuracy/methodology or explicitly choose preview-only behavior before submission |
 | Export compliance | `ITSAppUsesNonExemptEncryption = NO` for system HTTPS/keychain/hash usage | Recheck if custom encryption or cryptography is added |
 | Review access | No reviewer-specific bypass | Create a real dedicated review account, fund it, provide credentials through App Store Connect and keep backend available |
-| Distribution | Bundle ID `com.iphoneadvanced.app`, iOS 17+ | Set development team; archive and validate; configure App Store record, products, agreements, tax, banking and availability |
+| Distribution | Bundle ID `com.iphoneadvanced.app`, iOS 17+; unsigned device archive built with Xcode 26.2 / iOS 26.2 SDK; explicit launch-screen metadata | Set development team; create a distribution-signed archive and validate in Xcode; configure App Store record, products, agreements, tax, banking and availability |
 
 Payment/refund routes and encrypted Apple-token deletion were explicitly approved and implemented locally. Automatic safety review separately blocked the proposed global account-ID allocator and Stripe ledger guards as broader financial/database changes; that approval is still pending. Deletion remains deliberately disabled. Do not enable it while integer IDs can be recycled: a delayed checkout could otherwise credit a replacement account, and in-flight settlements can fail foreign-key checks. No production migration, deployment, App Store configuration, charge or live account deletion has been performed.
 
 Local evidence: 40 Node tests pass, including compiled Health-action checks tied to the signed shortcut and source hashes. The standalone Swift consent checks pass, the iOS Release simulator build passes, and `scripts/review-smoke.mjs` passes against actual local workerd/D1. This checks migrations, account routes, consent, forged Apple payload rejection, and purchase/refund/reversal SQL using a test-double Apple client. It is not a successful signed sandbox purchase. Full simulator visual QA remains open; a screenshot can be captured, but interactive inspection was blocked by the locked Mac.
 
 Health estimates are not measurements. Confirmation and a disclaimer do not prove accuracy or satisfy Apple's prohibition on false or inaccurate HealthKit data (5.1.3(ii)). The new shortcut is a safety improvement, not evidence that this feature will pass review. Before release, document and validate its estimation methodology or make an explicit product decision to omit Health writes. Deploy the new signed artifact and recipe-version gate together; existing copies will need reinstalling.
+
+Packaging evidence: the Release simulator build and unsigned generic-iOS archive both pass after adding `UILaunchScreen` to the manually maintained Info.plist. The built device archive contains the launch-screen dictionary, iPhone/iPad icons and a syntactically valid bundled privacy manifest. Its `DTSDKName` is `iphoneos26.2` and `DTXcode` is `2620`, meeting Apple's current Xcode 26 / iOS 26 SDK minimum. This is not distribution signing, an App Store validation result or a generated privacy report; the project's development team is still unset.
 
 ## Payment decision
 
@@ -122,4 +124,6 @@ Draft review notes (update to match the finished release before submission):
 - [Apple root certificates](https://www.apple.com/certificateauthority/).
 - [App Privacy Details](https://developer.apple.com/app-store/app-privacy-details/).
 - [Adding privacy manifests](https://developer.apple.com/documentation/bundleresources/adding-a-privacy-manifest-to-your-app-or-third-party-sdk).
+- [Launch-screen metadata](https://developer.apple.com/documentation/bundleresources/information-property-list/uilaunchscreen).
+- [Current upload SDK minimum](https://developer.apple.com/news/upcoming-requirements/?id=04282026a).
 - [Cloudflare AI Gateway logging controls](https://developers.cloudflare.com/ai-gateway/observability/logging/).
