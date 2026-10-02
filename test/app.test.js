@@ -53,7 +53,7 @@ test('plain http redirects to https', async () => {
 
 test('pages render', async () => {
   const { req } = await boot();
-  for (const p of ['/', '/automations', '/automations/reply-drafter', '/automations/tone-shifter', '/pricing', '/terms', '/privacy', '/login', '/signup']) {
+  for (const p of ['/', '/automations', '/automations/reply-drafter', '/automations/tone-shifter', '/pricing', '/terms', '/privacy', '/support', '/login', '/signup']) {
     assert.equal((await req(p)).status, 200, p);
   }
   const search = await (await req('/automations?q=meeting')).text();

@@ -129,3 +129,19 @@ export const privacy = ({ user }) => page({
 <h2>Contact</h2>
 <p>Privacy questions or requests: ${mail}. See also our <a href="/terms">Terms of Service</a>.</p>`,
 });
+
+export const support = ({ user }) => page({
+  title: 'Support', path: '/support', user,
+  intro: 'Get help with Advanced Automations, your account, or an AI action.',
+  body: `
+<h2>Contact us</h2>
+<p>Email ${mail}. Include the action name, what you expected, and the error message. Never send your password, API key, payment details or private source content.</p>
+<h2>Finding the actions</h2>
+<p>In Apple Shortcuts, create a shortcut and search for Advanced Automations under Apps. To use a ready-made automation, open its detail page in the library and follow the installation instructions.</p>
+<h2>An action cannot run</h2>
+<p>Check your connection, sign in to the same account, and review Account → AI Privacy in the iPhone app. A shortcut installed separately uses its own API key; if that key was revoked, add the shortcut again. Check the account balance if an action reports insufficient credit.</p>
+<h2>Unexpected AI results</h2>
+<p>AI answers can be inaccurate. Review output before using it to send a message, create a reminder or record information. Nutrition estimates from photos are approximate and are not medical advice.</p>
+<h2>Privacy questions</h2>
+<p>See our <a href="/privacy">Privacy Policy</a> or contact ${mail} for questions about your data.</p>`,
+});

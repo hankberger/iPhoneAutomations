@@ -221,6 +221,7 @@ app.get('/download/:slug', async (c) => {
 app.get('/pricing', (c) => c.html(views.pricing({ user: c.get('user') })));
 app.get('/terms', (c) => c.html(legal.terms({ user: c.get('user') })));
 app.get('/privacy', (c) => c.html(legal.privacy({ user: c.get('user') })));
+app.get('/support', (c) => c.html(legal.support({ user: c.get('user') })));
 
 // Auth
 for (const mode of ['login', 'signup']) {

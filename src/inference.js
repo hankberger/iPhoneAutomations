@@ -100,7 +100,12 @@ export const imageMicros = (model, inputTokens, outputTokens) => {
 // (bring your own key), or OPENAI_API_KEY here.
 export function aiGateway({ binding, accountId, apiToken, gatewayId = 'default', openaiKey, fetchImpl = globalThis.fetch } = {}) {
   async function call(endpoint, body) {
-    const headers = { 'Content-Type': 'application/json', ...(openaiKey ? { Authorization: `Bearer ${openaiKey}` } : {}) };
+    const headers = {
+      'Content-Type': 'application/json',
+      'cf-aig-collect-log': 'false',
+      'cf-aig-skip-cache': 'true',
+      ...(openaiKey ? { Authorization: `Bearer ${openaiKey}` } : {}),
+    };
     const res = binding?.gateway
       ? await binding.gateway(gatewayId).run({ provider: 'openai', endpoint, headers, query: body })
       : await fetchImpl(`https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/openai/${endpoint}`, {
