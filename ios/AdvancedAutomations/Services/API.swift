@@ -59,6 +59,7 @@ final class API: Sendable {
     }
 
     func run(_ slug: String, _ body: [String: String]) async throws -> RunResult {
+        try AIConsent.requirePermission()
         var req = try request("api/v1/run/\(slug)")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         return try JSONDecoder().decode(RunResult.self, from: try await send(req))
@@ -66,6 +67,7 @@ final class API: Sendable {
 
     // Audio blocks post the recording itself as the body.
     func run(_ slug: String, audio: Data) async throws -> RunResult {
+        try AIConsent.requirePermission()
         var req = try request("api/v1/run/\(slug)")
         req.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         req.httpBody = audio

@@ -1,41 +1,61 @@
-import AuthenticationServices
 import SwiftUI
+import AuthenticationServices
 
 struct AccountView: View {
     @EnvironmentObject private var session: Session
     @Environment(\.openURL) private var openURL
+    @Environment(\.webAuthenticationSession) private var webAuth
+    @State private var error: String?
+    @State private var signingIn = false
 
     var body: some View {
         NavigationStack {
             List {
                 if session.isSignedIn {
-                    SwiftUI.Section("Balance") {
-                        HStack {
-                            Text("Credit")
-                            Spacer()
-                            if let balance = session.balance {
-                                Text(balance, format: .currency(code: "USD")).fontWeight(.semibold)
-                            } else {
-                                ProgressView()
-                            }
+                SwiftUI.Section("Balance") {
+                    HStack {
+                        Text("Credit")
+                        Spacer()
+                        if let balance = session.balance {
+                            Text(balance, format: .currency(code: "USD")).fontWeight(.semibold)
+                        } else if session.balanceError != nil {
+                            Text("Unavailable").foregroundStyle(.secondary)
+                        } else {
+                            ProgressView()
                         }
-                        // Credit is bought on the site, like the rest of the account.
-                        Button("Top up on iphoneadvanced.com") { openURL(API.page("account").withFragment("balance")) }
                     }
-                    SwiftUI.Section {
-                        Button("Keys and history") { openURL(API.page("account")) }
-                        Button("Sign out", role: .destructive) { session.signOut() }
-                    } footer: {
-                        Text("Signing out forgets this phone’s key. Revoke it under Keys to turn it off everywhere.")
+                    if let error = session.balanceError {
+                        Text(error).font(.footnote).foregroundStyle(.secondary)
+                        Button("Retry balance") { Task { await session.refreshBalance() } }
                     }
+                    // Credit is bought on the site, like the rest of the account.
+                    Button("Top up on iphoneadvanced.com") { openURL(API.page("account").withFragment("balance")) }
+                }
+                SwiftUI.Section {
+                    Button("Keys and history") { openURL(API.page("account")) }
+                    Button("Sign out", role: .destructive) { session.signOut() }
+                } footer: {
+                    Text("Signing out forgets this phone’s key. Revoke it under Keys to turn it off everywhere.")
+                }
                 } else {
                     SwiftUI.Section {
-                        SignInCard(message: "Sign in with Apple, Google or email. New Apple and Google accounts start with free credit.")
-                            .listRowInsets(EdgeInsets())
-                            .listRowBackground(Color.clear)
+                        Text("Sign in to run AI actions and manage your credit. The library is free to browse.")
+                        Button(signingIn ? "Signing in…" : "Sign in or create account") {
+                            Task {
+                                signingIn = true
+                                defer { signingIn = false }
+                                do { try await session.connect(using: webAuth) }
+                                catch ASWebAuthenticationSessionError.canceledLogin {}
+                                catch { self.error = error.localizedDescription }
+                            }
+                        }
+                        .disabled(signingIn)
+                        if let error { Text(error).foregroundStyle(.red) }
                     }
                 }
                 SwiftUI.Section {
+                    NavigationLink("AI Privacy") { AIPrivacyView() }
+                    Link("Contact Support", destination: URL(string: "mailto:support@iphoneadvanced.com")!)
                     Button("Pricing") { openURL(API.page("pricing")) }
                     Button("Terms of Service") { openURL(API.page("terms")) }
                     Button("Privacy Policy") { openURL(API.page("privacy")) }
@@ -45,39 +65,6 @@ struct AccountView: View {
             .task { await session.refreshBalance() }
             .refreshable { await session.refreshBalance() }
         }
-    }
-}
-
-struct SignInCard: View {
-    var message: String
-    @EnvironmentObject private var session: Session
-    @Environment(\.webAuthenticationSession) private var webAuth
-    @State private var error: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(message)
-            Button {
-                Task {
-                    do {
-                        try await session.connect(using: webAuth)
-                        error = nil
-                    } catch ASWebAuthenticationSessionError.canceledLogin {
-                        error = nil
-                    } catch {
-                        self.error = error.localizedDescription
-                    }
-                }
-            } label: {
-                Text("Sign in").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(Theme.color("violet"))
-            if let error { Text(error).font(.footnote).foregroundStyle(.red) }
-        }
-        .padding(18)
-        .background(Theme.color("violet").opacity(0.09), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 

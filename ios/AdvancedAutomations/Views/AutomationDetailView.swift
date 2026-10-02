@@ -154,6 +154,7 @@ private struct NativeActionSection: View {
 // be imported from a downloaded file, which Safari hands over, so those go to the install page.
 private struct GetButton: View {
     var automation: Automation
+    @EnvironmentObject private var session: Session
     @Environment(\.openURL) private var openURL
     @State private var working = false
     @State private var status: String?
@@ -184,6 +185,14 @@ private struct GetButton: View {
     }
 
     private func get() async {
+        guard session.isSignedIn else {
+            status = "Open the Account tab and sign in to add this shortcut."
+            return
+        }
+        guard AIConsent.isAllowed else {
+            status = "Open Account → AI Privacy and review data sharing before adding AI shortcuts."
+            return
+        }
         guard let icloud = automation.icloudUrl else {
             openURL(API.page("automations/\(automation.slug)/install"))
             return

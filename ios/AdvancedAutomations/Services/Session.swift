@@ -8,6 +8,7 @@ import SwiftUI
 final class Session: ObservableObject {
     @Published private(set) var isSignedIn = Keychain.apiKey != nil
     @Published private(set) var balance: Double?
+    @Published private(set) var balanceError: String?
 
     static let callbackScheme = "iphoneadvanced"
 
@@ -29,17 +30,22 @@ final class Session: ObservableObject {
 
     // Forgets the key on this phone. It stays listed on the account page until revoked there.
     func signOut() {
+        AIConsent.setAllowed(false)
         Keychain.setAPIKey(nil)
         isSignedIn = false
         balance = nil
+        balanceError = nil
     }
 
     func refreshBalance() async {
         guard isSignedIn else { return }
         do {
             balance = try await API.shared.balance()
+            balanceError = nil
         } catch let error as APIError where error.status == 401 {
             signOut()
-        } catch {}
+        } catch {
+            balanceError = error.localizedDescription
+        }
     }
 }
