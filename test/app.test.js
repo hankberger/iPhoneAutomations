@@ -56,6 +56,10 @@ test('pages render', async () => {
   for (const p of ['/', '/automations', '/automations/reply-drafter', '/automations/tone-shifter', '/pricing', '/terms', '/privacy', '/login', '/signup']) {
     assert.equal((await req(p)).status, 200, p);
   }
+  const search = await (await req('/automations?q=meeting')).text();
+  assert.match(search, /Summarize My Meeting Notes/);
+  assert.match(search, /1 result for/);
+  assert.doesNotMatch(search, /Log My Meal/);
   assert.equal((await req('/automations/nope')).status, 404);
   assert.match((await req('/')).headers.get('content-security-policy'), /frame-ancestors 'none'/);
   assert.equal((await req('/webhooks/stripe', { method: 'POST', body: '{}' })).status, 400, 'webhook refuses without config');

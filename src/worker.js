@@ -185,7 +185,7 @@ app.get('/', (c) => c.html(views.landing({ user: c.get('user'), starterMicros: s
 app.get('/automations', (c) => {
   const q = c.req.query('category');
   const category = CATEGORIES.includes(q) ? q : '';
-  return c.html(views.catalog({ user: c.get('user'), category }));
+  return c.html(views.catalog({ user: c.get('user'), category, query: c.req.query('q') || '' }));
 });
 app.get('/automations/:slug', (c) => {
   const a = findAutomation(c.req.param('slug'));

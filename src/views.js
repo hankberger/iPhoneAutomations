@@ -87,7 +87,7 @@ const card = (a) => `
     <span class="ic">${icon(a.icon)}</span>
     <h3>${e(a.name)}</h3>
     <p>${e(a.tagline)}</p>
-    <span class="meta"><span>${e(a.trigger)} · ~${cents(a.typicalCost)}</span><span class="get">Get</span></span>
+    <span class="meta"><span>${e(a.input || a.trigger)}${a.output ? ` → ${e(a.output)}` : ''}</span><span class="get">Get</span></span>
   </a>`;
 
 const tile = (a, extra = '') => `<a class="tile c-${a.color}${extra}" href="/automations/${a.slug}">${icon(a.icon)}<span>${e(a.name)}</span></a>`;
@@ -141,9 +141,22 @@ export function landing({ user, starterMicros }) {
   });
 }
 
-export function catalog({ user, category }) {
-  const list = category ? AUTOMATIONS.filter((a) => a.category === category) : AUTOMATIONS;
-  const chip = (c, label) => `<a class="chip" href="/automations${c ? `?category=${encodeURIComponent(c)}` : ''}"${(category || '') === c ? ' aria-current="true"' : ''}>${label}</a>`;
+export function catalog({ user, category, query = '' }) {
+  const normalized = query.trim().toLowerCase();
+  const list = AUTOMATIONS.filter((a) => {
+    if (category && a.category !== category) return false;
+    if (!normalized) return true;
+    return [a.name, a.tagline, a.category, a.trigger, a.input, a.output, ...(a.tags || [])]
+      .filter(Boolean).join(' ').toLowerCase().includes(normalized);
+  });
+  const href = (c = category, q = query) => {
+    const params = new URLSearchParams();
+    if (c) params.set('category', c);
+    if (q) params.set('q', q);
+    const suffix = params.toString();
+    return `/automations${suffix ? `?${suffix}` : ''}`;
+  };
+  const chip = (c, label) => `<a class="chip" href="${href(c)}"${(category || '') === c ? ' aria-current="true"' : ''}>${label}</a>`;
   return layout({
     title: 'Shortcuts',
     user,
@@ -152,9 +165,17 @@ export function catalog({ user, category }) {
 <section class="wrap page-head center">
   <h1>Shortcuts</h1>
   <p class="lede">All free. Tap one, then Add to Shortcuts. You only pay for the AI each run uses.</p>
+  <form class="catalog-search" action="/automations" method="get" role="search">
+    ${category ? `<input type="hidden" name="category" value="${e(category)}">` : ''}
+    <input type="search" name="q" value="${e(query)}" placeholder="Search by task, input or outcome" aria-label="Search shortcuts">
+    <button class="btn btn-sm" type="submit">Search</button>
+  </form>
   <div class="chips">${chip('', 'All')}${CATEGORIES.map((c) => chip(c, c)).join('')}</div>
 </section>
-<section class="wrap"><div class="grid">${list.map(card).join('')}</div></section>`,
+<section class="wrap">
+  ${normalized ? `<p class="small muted">${list.length} result${list.length === 1 ? '' : 's'} for “${e(query)}”</p>` : ''}
+  <div class="grid">${list.length ? list.map(card).join('') : '<p class="empty-state">Nothing matches that search. Try “photo”, “meeting”, “write” or “tasks”.</p>'}</div>
+</section>`,
   });
 }
 
