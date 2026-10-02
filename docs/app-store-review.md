@@ -9,12 +9,12 @@ The app is **not ready to submit** while any release gate below remains open.
 | --- | --- | --- |
 | Browse without an account | Welcome → Browse without an account; native library tabs | Exercise on iPhone and iPad, including large text |
 | Native AI consent | Account → AI Privacy, named providers and data categories; both `API.run` overloads check consent before upload | Test sign-in, deny, allow, withdraw and different-account flows on device |
-| Downloaded shortcut consent | App checks consent before installation; existing files execute separately in Shortcuts | Add account-level consent enforcement for all inference endpoints and explicit web installation consent; local app consent alone does not cover independently installed files |
+| Downloaded shortcut consent | Account-level versioned consent gates every inference path; native/web approval; withdrawal blocks all keys | Test real installed shortcuts with denied and withdrawn permission |
 | Privacy manifest | Bundled `PrivacyInfo.xcprivacy`, no tracking, app-only UserDefaults reason | Generate archive privacy report and reconcile App Store Connect answers with production provider retention |
 | AI Gateway retention | Image requests send `cf-aig-collect-log: false` and `cf-aig-skip-cache: true` | Verify binding and REST requests in the actual gateway; inspect and remove older stored payloads under the retention policy |
-| In-app purchases | Unwired server module, product mapping, migration and isolated SQL/security tests | Wire authenticated purchase endpoints and Apple notifications; build StoreKit purchase UI and unfinished-transaction recovery; validate in sandbox |
-| Account deletion | Existing policy offers email contact only | Implement an in-app deletion confirmation, backend deletion and Sign in with Apple token revocation; email-only deletion is insufficient |
-| External checkout links | Existing app still links to web top-up, account and pricing | Replace app purchase entry points with StoreKit; inspect auth, install and legal navigation for indirect checkout paths |
+| In-app purchases | Native StoreKit, verified app-bound server delivery, notifications, refunds/reversals and unfinished-purchase recovery | Configure credentials/products and verify real sandbox purchases, refunds and reversals |
+| Account deletion | Native/web confirmation, data deletion and encrypted Apple-token revocation implemented; disabled by default | Approve and implement account-ID non-reuse and late-payment/settlement guards before enabling deletion; test on device |
+| External checkout links | Native StoreKit and key/history screens replace web links; app-safe legal/auth pages; direct shortcut downloads | Audit all success/error/auth/install links on device and each supported storefront |
 | Login | Web authentication supports email, Apple and Google | Configure and test Apple in production whenever Google is offered; preserve return to app after account linking |
 | Support | In-app support email and public `/support` page | Deploy and verify the page; confirm `support@iphoneadvanced.com` is monitored |
 | Health-related shortcuts | Log My Meal estimates nutrition and writes it directly to Health | Show an estimate for confirmation before writing; rebuild/sign the shortcut and replace its iCloud link; disclose limitations and avoid accuracy/medical claims |
@@ -22,7 +22,9 @@ The app is **not ready to submit** while any release gate below remains open.
 | Review access | No reviewer-specific bypass | Create a real dedicated review account, fund it, provide credentials through App Store Connect and keep backend available |
 | Distribution | Bundle ID `com.iphoneadvanced.app`, iOS 17+ | Set development team; archive and validate; configure App Store record, products, agreements, tax, banking and availability |
 
-Payment and deletion source changes were blocked by automatic approval review; explicit approvals are pending in this task. No production migration, deployment, App Store configuration, charge or live account deletion has been performed.
+Payment/refund routes and encrypted Apple-token deletion were explicitly approved and implemented locally. Automatic safety review separately blocked the proposed global account-ID allocator and Stripe ledger guards as broader financial/database changes; that approval is still pending. Deletion remains deliberately disabled. Do not enable it while integer IDs can be recycled: a delayed checkout could otherwise credit a replacement account, and in-flight settlements can fail foreign-key checks. No production migration, deployment, App Store configuration, charge or live account deletion has been performed.
+
+Local evidence: 38 Node tests pass, the standalone Swift consent checks pass, the iOS Release simulator build passes, and `scripts/review-smoke.mjs` passes against actual local workerd/D1. This checks migrations, account routes, consent, forged Apple payload rejection, and purchase/refund/reversal SQL using a test-double Apple client. It is not a successful signed sandbox purchase. Simulator visual QA remains open because the Mac was locked.
 
 ## Payment decision
 
@@ -43,7 +45,7 @@ Retail prices are not configured by this repository. Choose available App Store 
 
 Review profitability before enabling sales. With the existing 1.5× inference markup, a hypothetical 30% commission leaves 1.05× upstream cost before taxes and other costs; a 15% commission leaves 1.275×. Confirm the commission applicable to your account and programs. Do not change inference rates silently to compensate.
 
-StoreKit client requirements still to implement:
+Implemented StoreKit behavior (still requires sandbox/device validation):
 
 - Fetch products and display their localized price and delivered credit. Empty products/error states must have a retry action and must not open Stripe as a fallback.
 - Obtain a stable server-generated UUID for `appAccountToken` before purchase. Bind every transaction to that account.
@@ -51,9 +53,9 @@ StoreKit client requirements still to implement:
 - Send the signed transaction to the server. Finish it only after the server confirms delivery, including idempotent repeats.
 - Listen to `Transaction.updates` at launch and reconcile `Transaction.unfinished` after login and on retry. Never transfer a pending purchase to another account.
 - Consumables are not conventional restorable purchases. Provide purchase-delivery retry and refresh the account balance after sign-in on another device; do not promise StoreKit can restore already-consumed credit.
-- Handle verified refunds and revocations without duplicate deduction. Refund reversal support remains to be implemented in the isolated server module; do not treat the existing notification-type list as proof of that support.
+- Handle verified refunds/revocations without duplicate deduction. Reversals restore only removed credit, including refund-before-delivery; older signed state cannot overwrite newer state. Tests cover repeated refund/reversal cycles.
 
-Backend configuration required once implementation is approved:
+Backend configuration required before rollout:
 
 | Name | Source |
 | --- | --- |
@@ -62,10 +64,14 @@ Backend configuration required once implementation is approved:
 | `APP_STORE_PRIVATE_KEY` | Private `.p8` key, stored as a Worker secret, never in git |
 | `APP_STORE_APP_ID` | Numeric Apple ID of the App Store record |
 | `APP_STORE_SANDBOX_USER_IDS` | Explicit comma-separated server user IDs for dedicated testers/reviewers only |
+| `TOKEN_ENCRYPTION_KEY` | 32 cryptographically random bytes, hex encoded; Worker secret held separately from the database |
+| `ACCOUNT_DELETION_ENABLED` | Keep `false` until additional database safeguards and deletion release tests pass |
 
-The sandbox account restriction prevents unlimited test purchases from funding real provider inference on arbitrary customer accounts. Supply reviewers a dedicated allowlisted account. Never broadly enable sandbox credits in production. Use App Store Server Notifications V2 and configure production/sandbox URLs after the route exists. Verify Apple's TEST notification before launch.
+The sandbox account restriction prevents unlimited test purchases from funding real provider inference on arbitrary customer accounts. Supply reviewers a dedicated allowlisted account. Never broadly enable sandbox credits in production. Configure App Store Server Notifications V2 at `https://iphoneadvanced.com/webhooks/apple` for both environments. Verify Apple's TEST notification before launch. Never use real customer accounts for sandbox tests.
 
-The service module validates Apple's certificate chain with the official library and retrieves current transaction data from Apple's authenticated server API before delivery. Tests currently cover forged signatures, transaction replay, cross-account claiming, wrong products/bundles/environments/quantities, revoked transactions, refunds before delivery and deletion tombstones. They do not substitute for real sandbox purchases or testing the library in the deployed Workers runtime.
+Apply migrations in order to staging, provision secrets, and deploy the server before distributing the new client. Existing accounts must explicitly approve AI sharing. Apple sign-in now requires `TOKEN_ENCRYPTION_KEY` and a provider token: provision the secret before deploying to avoid interrupting sign-in. Back it up securely; do not replace it without re-encrypting saved tokens. Tokens use AES-GCM, fresh 96-bit nonces and the Apple subject as authenticated additional data. Tokens and provider error bodies are never logged.
+
+The service module validates Apple's certificate chain with the official library and retrieves current transaction data from Apple's authenticated server API before delivery. Tests cover forged signatures, transaction replay, cross-account claiming, invalid products/bundles/environments/quantities, refunds/reversals, stale state and deletion tombstones. Local runtime tests do not substitute for a complete valid signed transaction in the deployed Workers runtime.
 
 ## Account and privacy completion
 
@@ -73,7 +79,7 @@ Account deletion must remove the account and associated sessions, API keys, link
 
 For Sign in with Apple, save an encrypted refresh or access token at login, revoke it through Apple's REST endpoint during deletion, and handle old accounts whose token was never stored through a fresh Apple sign-in. Do not claim a successful deletion while revocation or data deletion failed. Test cancellation, retry, revoked credentials, another account's credentials and concurrent inference/purchase deliveries.
 
-Reconcile the public Terms and Privacy Policy after these features exist. The current text does not yet describe IAP or in-app account deletion. Publish the policy before submitting. Confirm Cloudflare and OpenAI data-processing/retention settings; do not claim zero retention unless verified for every provider and route. Health data must not be used for ads, marketing or model training. Native actions use files passed by Shortcuts, so do not request blanket photo-library, microphone, contacts or Health access in the app when it does not access those APIs.
+The updated Terms and Privacy Policy describe IAP, Apple refunds, encrypted tokens, account-wide consent and deletion. Publish them only with the corresponding completed release; deletion is still gated. Obtain legal review and confirm provider retention; do not claim zero retention unless verified for every provider and route. Health data must not be used for ads, marketing or model training. Native actions use files passed by Shortcuts, so do not request blanket photo-library, microphone, contacts or Health access in the app when it does not access those APIs.
 
 The manifest currently conservatively declares account email/ID, purchase history, product interaction, user-selected text/messages/photos/audio/health content and diagnostics as linked to the account, for app functionality, with no tracking. Confirm each category against the final feature set and actual retention before copying answers into App Store Connect. Apple's definition of collection includes third-party retention beyond servicing a request. The manifest is not a replacement for App Store Connect's questionnaire or the public policy.
 

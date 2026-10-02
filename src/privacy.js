@@ -49,7 +49,7 @@ export async function deleteAccount(db, userId, env, apple, fetchImpl = globalTh
     if (!response.ok) throw new AccountError('Could not disconnect Sign in with Apple. Please retry account deletion.', 503);
   }
   // Explicitly remove analytics as well as cascading keys, sessions, identity and ledger
-  // rows. Anonymous purchase IDs remain to prevent replay and for reconciliation.
+  // rows. Unlinked purchase IDs remain to prevent replay and for reconciliation.
   await db.batch([
     db.prepare('DELETE FROM analytics_events WHERE user_id = ?').bind(userId),
     db.prepare('DELETE FROM users WHERE id = ?').bind(userId),

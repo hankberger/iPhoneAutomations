@@ -151,14 +151,27 @@ Installed shortcuts call `POST /api/v1/run/<slug>` with `{ "input": "...", "choi
 
 - **Sign-in:** the app opens `/app/connect` in an `ASWebAuthenticationSession`. The person signs in on the site as usual (email, Google or Apple), taps Connect, and a new key named "iPhone app" comes back through `iphoneadvanced://connect`. The key lives in the Keychain.
 - **Catalog:** fetched from `GET /api/v1/catalog`, cached, with `ios/AdvancedAutomations/Resources/catalog.json` bundled for first launch. Run `npm run ios:catalog` after changing `src/catalog.js`.
-- **Getting a shortcut:** with an `icloudUrl`, the app mints a key through `POST /api/v1/keys`, copies it and opens the iCloud link. Without one, it opens the install page in Safari.
-- **Credit:** balance comes from `/api/v1/balance`; top-ups open the account page in Safari.
+- **Getting a shortcut:** after explicit AI-sharing permission, the app mints a key through `POST /api/v1/keys`, copies it and opens the iCloud link or downloads the signed file directly in Safari.
+- **Credit:** balance comes from `/api/v1/balance`; Add credit uses StoreKit consumables and retries unfinished purchases. Website Stripe checkout is separate.
 
 Open `ios/AdvancedAutomations.xcodeproj`, pick your team under Signing & Capabilities, and run. To point it at `npm run dev:local`, change `API.baseURL` in `Services/API.swift`. The Xcode project uses folder-synchronized groups, so new files under `ios/AdvancedAutomations/` are picked up without editing the project.
 
 ## App Store readiness
 
 App Store preparation and outstanding release gates are tracked in [docs/app-store-review.md](docs/app-store-review.md). The app is not submission-ready until those gates are closed.
+
+The native client now buys consumable credit with StoreKit; Stripe remains on the independent website. `/api/v1/store/purchase` verifies account-bound transactions with Apple; `/webhooks/apple` handles signed App Store Server Notifications V2. See `.dev.vars.example` for server configuration. Never grant production inference credit to arbitrary sandbox accounts.
+
+Before deploying this version, apply migrations through `0008` and provision `TOKEN_ENCRYPTION_KEY` (a separate 32-byte hex secret) alongside the Apple sign-in credentials. Apple provider tokens are encrypted at login for revocation during deletion. Existing accounts must explicitly approve AI sharing; native and downloaded shortcut calls are blocked until they do so.
+
+Account deletion UI and routes are implemented but **remain disabled**. Do not enable `ACCOUNT_DELETION_ENABLED` until the pending account-ID/late-payment safeguards and release tests in the checklist are complete. No production migration or deployment is implied by these source changes.
+
+Local Worker verification (no real credentials or upstream calls):
+
+```sh
+npx wrangler deploy --dry-run --outdir /tmp/iphoneautomations-review-worker --env local
+node scripts/review-smoke.mjs
+```
 
 ## Mockups with GPT-Image-2
 

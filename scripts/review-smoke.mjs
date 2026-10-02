@@ -4,6 +4,7 @@
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFile, readdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { createAppStore } from '../src/app-store.js';
 
 const mf = new Miniflare(convertV4MiniflareOptions({
   modules: true, script: await readFile('/tmp/iphoneautomations-review-worker/worker.js', 'utf8'),
@@ -31,5 +32,19 @@ try {
   assert.equal((await req('/api/v1/account/delete', { confirmation: 'DELETE' })).status, 503, 'deletion rollout remains closed');
   assert.equal((await req('/api/v1/account/privacy', { version: 1, allowed: true })).status, 200);
   assert.equal((await (await req('/api/v1/account/privacy')).json()).allowed, true);
-  console.log('PASS: actual local workerd/D1 migrations, account routes, consent, invalid Apple signatures and closed deletion gate');
+  // Exercise actual D1 batch/changes() behavior, not just the Node SQLite stand-in.
+  // The Apple client here is an explicit test double; these are not real receipts.
+  const tx = { transactionId: '987654', bundleId: 'com.iphoneadvanced.app', type: 'Consumable', inAppOwnershipType: 'PURCHASED', quantity: 1,
+    productId: 'com.iphoneadvanced.app.credits5', environment: 'Production', signedDate: 1000 };
+  const store = createAppStore(db, {}, { enabled: true, transaction: async () => ({ ...tx }) });
+  tx.appAccountToken = await store.accountToken(1);
+  assert.equal((await store.purchase(1, 'test-double')).balance_usd, 5);
+  assert.equal((await store.purchase(1, 'test-double')).balance_usd, 5);
+  await db.prepare('UPDATE users SET balance_micros=2000000 WHERE id=1').run();
+  tx.revocationDate = 2000; tx.signedDate = 2000;
+  assert.equal((await store.purchase(1, 'test-double')).balance_usd, 0);
+  delete tx.revocationDate; tx.signedDate = 3000;
+  assert.equal((await store.purchase(1, 'test-double')).balance_usd, 2);
+  assert.equal((await store.purchase(1, 'test-double')).balance_usd, 2);
+  console.log('PASS: actual local workerd/D1 migrations, account routes, consent, invalid Apple signatures, closed deletion gate, and idempotent purchase/refund/reversal SQL');
 } finally { await mf.dispose(); }
