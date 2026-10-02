@@ -62,7 +62,11 @@ export function validateCredentials(email, password) {
 export function createAuth(db, { starterMicros = 0 } = {}) {
   const q = {
     userByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
-    insertUser: db.prepare('INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?) RETURNING id'),
+    // Read the permanent registry, not MAX(users.id): deleting the highest (or
+    // every) account must never let a delayed payment target a new person.
+    // The insert trigger registers the ID atomically with this statement.
+    insertUser: db.prepare(`INSERT INTO users (id, email, password_hash, created_at)
+      VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM account_ids), ?, ?, ?) RETURNING id`),
     insertSession: db.prepare('INSERT INTO sessions (token_hash, user_id, csrf, expires_at) VALUES (?, ?, ?, ?)'),
     session: db.prepare(`SELECT s.csrf, s.expires_at, u.id, u.email, u.email_verified_at, u.balance_micros, u.stripe_customer_id, u.ai_consent_version
                          FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`),
@@ -76,7 +80,8 @@ export function createAuth(db, { starterMicros = 0 } = {}) {
     revokeKey: db.prepare('UPDATE api_keys SET revoked_at = ? WHERE id = ? AND user_id = ?'),
     identity: db.prepare('SELECT user_id FROM identities WHERE provider = ? AND subject = ?'),
     insertIdentity: db.prepare('INSERT INTO identities (provider, subject, user_id, email, created_at) VALUES (?, ?, ?, ?, ?)'),
-    insertOauthUser: db.prepare("INSERT INTO users (email, password_hash, email_verified_at, created_at) VALUES (?, '', ?, ?) RETURNING id"),
+    insertOauthUser: db.prepare(`INSERT INTO users (id, email, password_hash, email_verified_at, created_at)
+      VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM account_ids), ?, '', ?, ?) RETURNING id`),
     // The password on an unconfirmed account may have been set by someone squatting the email,
     // so the first verified sign-in turns it off and ends its sessions.
     claimUser: db.prepare("UPDATE users SET password_hash = '', email_verified_at = ? WHERE id = ?"),

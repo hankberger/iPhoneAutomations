@@ -12,12 +12,15 @@ export function createBilling(db, { stripeKey, webhookSecret, appUrl } = {}) {
     // Only succeeds when the balance covers the debit, which makes reservations race-safe.
     debit: db.prepare('UPDATE users SET balance_micros = balance_micros - ? WHERE id = ? AND balance_micros >= ?'),
     balance: db.prepare('SELECT balance_micros FROM users WHERE id = ?'),
+    // Existence checks belong inside the writes, not in a separate read that can
+    // race deletion. A late settlement/payment must be a no-op for a deleted ID.
     ledger: db.prepare(`INSERT INTO ledger (user_id, kind, amount_micros, description, stripe_session_id, model, input_tokens, output_tokens, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+                        SELECT id, ?, ?, ?, ?, ?, ?, ?, ? FROM users WHERE id = ?`),
     topupLedger: db.prepare(`INSERT INTO ledger (user_id, kind, amount_micros, description, stripe_session_id, created_at)
-                             VALUES (?, 'topup', ?, ?, ?, ?) ON CONFLICT (stripe_session_id) DO NOTHING`),
+                             SELECT id, 'topup', ?, ?, ?, ? FROM users WHERE id = ?
+                             ON CONFLICT (stripe_session_id) DO NOTHING`),
     // changes() is the row count of the ledger insert just before it in the same batch,
-    // so a replayed session inserts nothing and credits nothing.
+    // so a replayed session or deleted account inserts nothing and credits nothing.
     topupCredit: db.prepare('UPDATE users SET balance_micros = balance_micros + ? WHERE id = ? AND changes() = 1'),
     history: db.prepare('SELECT * FROM ledger WHERE user_id = ? ORDER BY id DESC LIMIT ?'),
     setCustomer: db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?'),
@@ -28,10 +31,10 @@ export function createBilling(db, { stripeKey, webhookSecret, appUrl } = {}) {
     if (session.payment_status !== 'paid') return false;
     const userId = Number(session.metadata?.user_id);
     const credit = Number(session.metadata?.credit_micros);
-    if (!userId || !credit) return false;
+    if (!Number.isSafeInteger(userId) || userId <= 0 || !Number.isSafeInteger(credit) || credit <= 0) return false;
     // A D1 batch runs as one transaction.
     const [inserted] = await db.batch([
-      q.topupLedger.bind(userId, credit, `Added ${formatUsd(credit)} credit`, session.id, Date.now()),
+      q.topupLedger.bind(credit, `Added ${formatUsd(credit)} credit`, session.id, Date.now(), userId),
       q.topupCredit.bind(credit, userId),
     ]);
     if (inserted.meta.changes !== 1) return false;
@@ -88,7 +91,7 @@ export function createBilling(db, { stripeKey, webhookSecret, appUrl } = {}) {
     const stmts = [];
     if (reserved > actual) stmts.push(q.credit.bind(reserved - actual, userId));
     if (actual > 0) {
-      stmts.push(q.ledger.bind(userId, 'usage', -actual, meta.description, null, meta.model, meta.input_tokens, meta.output_tokens, Date.now()));
+      stmts.push(q.ledger.bind('usage', -actual, meta.description, null, meta.model, meta.input_tokens, meta.output_tokens, Date.now(), userId));
     }
     if (stmts.length) await db.batch(stmts);
   }

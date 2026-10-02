@@ -33,8 +33,8 @@ export async function openToken(value, secret, subject) {
 }
 
 export async function deleteAccount(db, userId, env, apple, fetchImpl = globalThis.fetch) {
-  // Keep this rollout closed until the account-ID/late-payment safeguards have
-  // been migrated and verified. Never enable on a live database without them.
+  // Keep this rollout closed until migration 0009 and the matching billing/auth
+  // code are deployed and deletion has passed staging/device checks.
   if (env.ACCOUNT_DELETION_ENABLED !== 'true') throw new AccountError('Account deletion is temporarily unavailable. Please try again later.', 503);
   const identity = await db.prepare("SELECT subject, revocation_token FROM identities WHERE user_id = ? AND provider = 'apple'").bind(userId).first();
   if (identity) {
