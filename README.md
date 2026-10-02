@@ -119,6 +119,10 @@ Installed shortcuts call `POST /api/v1/run/<slug>` with `{ "input": "...", "choi
 
 Open `ios/AdvancedAutomations.xcodeproj`, pick your team under Signing & Capabilities, and run. To point it at `npm run dev:local`, change `API.baseURL` in `Services/API.swift`. The Xcode project uses folder-synchronized groups, so new files under `ios/AdvancedAutomations/` are picked up without editing the project.
 
+## App Store readiness
+
+App Store preparation and outstanding release gates are tracked in [docs/app-store-review.md](docs/app-store-review.md). The app is not submission-ready until those gates are closed.
+
 ## Mockups with GPT-Image-2
 
 ```bash
