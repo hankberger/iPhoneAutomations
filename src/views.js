@@ -1,11 +1,10 @@
 import { AUTOMATIONS, CATEGORIES, findAutomation } from './catalog.js';
 import { MODELS, AUDIO_MODELS, IMAGE_MODELS, JEV, retailPrice } from './inference.js';
-import { TOPUP_AMOUNTS, formatUsd, MICROS } from './billing.js';
+import { TOPUP_AMOUNTS, formatUsd } from './billing.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const e = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
 const date = (ms) => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-const cents = (usd) => (usd * 100 < 0.01 ? '<0.01¢' : `${Number((usd * 100).toPrecision(2))}¢`);
 
 const ICONS = {
   doc: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
@@ -43,7 +42,7 @@ export function layout({ title, user, body, active = '' }) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${e(title ? `${title} · Advanced Automations` : 'Advanced Automations: AI building blocks for iOS Shortcuts')}</title>
-<meta name="description" content="AI building blocks for iOS Shortcuts. Drop Ask AI, Transcribe Audio, Pick a Category and more into any shortcut you build. Free to add, under a cent a run, no subscription.">
+<meta name="description" content="AI building blocks for iOS Shortcuts. Drop Ask AI, Transcribe Audio, Pick a Category and more into any shortcut you build. Free to add, pay as you go, no subscription.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
@@ -51,7 +50,7 @@ export function layout({ title, user, body, active = '' }) {
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Advanced Automations">
 <meta property="og:title" content="${e(title ? `${title} · Advanced Automations` : 'Advanced Automations: AI building blocks for iOS Shortcuts')}">
-<meta property="og:description" content="AI building blocks for iOS Shortcuts. Drop Ask AI, Transcribe Audio, Pick a Category and more into any shortcut you build. Free to add, under a cent a run, no subscription.">
+<meta property="og:description" content="AI building blocks for iOS Shortcuts. Drop Ask AI, Transcribe Audio, Pick a Category and more into any shortcut you build. Free to add, pay as you go, no subscription.">
 <meta property="og:image" content="https://iphoneadvanced.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -87,7 +86,7 @@ const card = (a) => `
     <span class="ic">${icon(a.icon)}</span>
     <h3>${e(a.name)}</h3>
     <p>${e(a.tagline)}</p>
-    <span class="meta"><span>${e(a.trigger)} · ~${cents(a.typicalCost)}</span><span class="get">Get</span></span>
+    <span class="meta"><span>${e(a.trigger)}</span><span class="get">Get</span></span>
   </a>`;
 
 const tile = (a, extra = '') => `<a class="tile c-${a.color}${extra}" href="/automations/${a.slug}">${icon(a.icon)}<span>${e(a.name)}</span></a>`;
@@ -124,7 +123,7 @@ export function landing({ user, starterMicros }) {
 <section class="hero wrap">
   <div>
     <h1>AI building blocks for <mark>iOS Shortcuts.</mark></h1>
-    <p class="lede">Drop Ask AI, Transcribe Audio, Pick a Category and more into any shortcut you build. The blocks are free. Each run costs a fraction of a cent.</p>
+    <p class="lede">Give any shortcut real intelligence. Ask questions, read photos and screenshots, transcribe recordings, pull clean data out of anything and make images, each as a single step you drop into the shortcuts you build.</p>
     <div class="cta">
       <a class="btn btn-lg" href="#blocks">Get the blocks</a>
       <a class="link" href="#recipes">See what you can build →</a>
@@ -136,14 +135,14 @@ export function landing({ user, starterMicros }) {
     <div class="tile tile-result tile-recipe">
       <span class="small recipe-label">Your shortcut</span>
       <ol class="steps">${plainStep('Get Clipboard')}${blockChip(ask, '"Summarize in three lines"')}${plainStep('Show Result')}</ol>
-      <small>${e(MODELS[ask.model].label)} · ~${cents(ask.typicalCost)} a run</small>
+      <small>Runs on ${e(MODELS[ask.model].label)}</small>
     </div>
   </div>
 </section>
 
 <section class="wrap section center" id="blocks">
-  <h2>Six blocks. Any shortcut you can dream up.</h2>
-  <p class="muted">Each block is an action you add with Run Shortcut. Pass it what to work on and your instructions, and it hands the answer to your next step.</p>
+  <h2>Serious AI, as easy as any other action.</h2>
+  <p class="muted">Each block puts a capable model behind one Run Shortcut step. It sees images, hears audio, returns a Dictionary you can read field by field, and answers with exactly one of your choices so your If just works. More blocks are on the way.</p>
   <div class="grid grid-3">${blocks.map(card).join('')}</div>
 </section>
 
@@ -168,7 +167,7 @@ export function landing({ user, starterMicros }) {
 
 <section class="wrap stats">
   <div><b>$0</b><p>for every block and shortcut, forever</p></div>
-  <div><b>${starterMicros ? starterCents(starterMicros) : '&lt;1¢'}</b><p>${starterMicros ? 'free credit when you sign in with Apple or Google' : 'typical cost of one run'}</p></div>
+  <div><b>${starterMicros ? starterCents(starterMicros) : `$${TOPUP_AMOUNTS[0]}`}</b><p>${starterMicros ? 'free credit when you sign in with Apple or Google' : 'smallest top-up'}</p></div>
   <div><b>0</b><p>subscriptions. Credit never expires.</p></div>
 </section>`,
   });
@@ -232,12 +231,11 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
       <p class="lede">${e(a.tagline)}</p>
       <div class="get-row">
         <a class="btn btn-lg btn-get" href="${installHref(a, user)}">${icon('plus')}<span>${user ? 'Add to Shortcuts' : 'Get it free'}</span></a>
-        <p class="small muted">${user ? 'Free. Each run costs about ' + cents(a.typicalCost) + ' from your balance.' : `Free. Sign in with Apple${starterMicros ? ` and start with ${starterCents(starterMicros)} of credit` : ''}.`}</p>
+        <p class="small muted">${user ? 'Free. Each run spends from your balance.' : `Free. Sign in with Apple${starterMicros ? ` and start with ${starterCents(starterMicros)} of credit` : ''}.`}</p>
       </div>
       <dl class="facts">
         <div><dt>Runs from</dt><dd>${e(a.trigger)}</dd></div>
         <div><dt>Model</dt><dd>${e(modelLabel(a))}</dd></div>
-        <div><dt>Typical cost</dt><dd>~${cents(a.typicalCost)} ${a.audio ? `per ${a.typicalMinutes}-minute recording` : 'per run'}</dd></div>
       </dl>
     </div>
   </div>
@@ -270,7 +268,6 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
 export function install({ user, a, key, balance, fileUrl }) {
   const icloud = Boolean(a.icloudUrl);
   const href = icloud ? a.icloudUrl : fileUrl;
-  const runs = a.typicalCost > 0 ? Math.floor(balance / MICROS / a.typicalCost) : 0;
   return layout({
     title: `Add ${a.name}`,
     user,
@@ -293,7 +290,7 @@ export function install({ user, a, key, balance, fileUrl }) {
     ${icloud ? '' : `<li><b>1</b><div><h3>Open the download</h3><p>Tap the download arrow in Safari’s address bar, then tap <strong>${e(a.name)}</strong>. It opens in Shortcuts.</p></div></li>`}
     <li><b>${icloud ? 1 : 2}</b><div><h3>Paste when asked</h3><p>Shortcuts shows the shortcut with a box for your key. Tap it, paste, then tap <strong>Add Shortcut</strong>.</p></div></li>
     <li><b>${icloud ? 2 : 3}</b><div><h3>Run it</h3><p>${e(a.runTip)}</p></div></li>
-    <li><b>${icloud ? 3 : 4}</b><div><h3>Keep it topped up</h3><p>${balance > 0 ? `You have ${formatUsd(balance)} of credit, enough for about ${runs.toLocaleString('en-US')} runs of this shortcut.` : 'Your balance is empty, so add a little credit before the first run.'} <a href="/account#balance">${balance > 0 ? 'See your balance' : 'Top up'}</a></p></div></li>
+    <li><b>${icloud ? 3 : 4}</b><div><h3>Keep it topped up</h3><p>${balance > 0 ? `You have ${formatUsd(balance)} of credit.` : 'Your balance is empty, so add a little credit before the first run.'} <a href="/account#balance">${balance > 0 ? 'See your balance' : 'Top up'}</a></p></div></li>
   </ol>
   <p class="small muted center desktop-only">On a computer? Open iphoneadvanced.com on your iPhone and tap Get there instead.</p>
 </section>
@@ -339,7 +336,7 @@ export function pricing({ user }) {
 <section class="wrap narrow">
   <div class="stats">
     <div><b>$0</b><p>for every block</p></div>
-    <div><b>&lt;1¢</b><p>typical run</p></div>
+    <div><b>0</b><p>subscriptions</p></div>
     <div><b>$5</b><p>smallest top-up</p></div>
   </div>
   <div class="panel">

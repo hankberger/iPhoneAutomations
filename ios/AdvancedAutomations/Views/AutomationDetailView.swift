@@ -13,8 +13,6 @@ struct AutomationDetailView: View {
                     Text(automation.tagline).font(.title3).foregroundStyle(.secondary)
                     HStack(spacing: 8) {
                         Label(automation.isBlock ? "Shortcuts action" : automation.trigger, systemImage: automation.isBlock ? "square.stack.3d.up" : "hand.tap")
-                        Text("·")
-                        Text("\(automation.typicalCostLabel) a run")
                     }
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
