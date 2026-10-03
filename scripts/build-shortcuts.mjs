@@ -2,7 +2,7 @@
 //
 // Needs Cherri with Health quantity support and unique control-flow grouping UUIDs.
 // Tested: upstream a66db15b7f247f3121726c2a2b72becfeef3d96b (import fix included),
-// plus scripts/cherri-health-quantity.patch and scripts/cherri-grouping-uuids.patch.
+// plus scripts/cherri-health-quantity.patch, cherri-grouping-uuids.patch and cherri-raw-plist.patch.
 // Put it on PATH or set CHERRI=/path/to/cherri.
 // Usage: npm run shortcuts [-- slug ...]
 import { execFileSync } from 'node:child_process';
@@ -18,8 +18,26 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CHERRI = process.env.CHERRI || 'cherri';
 const API_BASE = (process.env.SHORTCUT_API_BASE || 'https://iphoneadvanced.com').replace(/\/$/, '');
 export const KEY_PROMPT = 'Paste your Advanced Automations key. We copied it when you tapped Get. Lost it? Make one in your account at iphoneadvanced.com.';
-// Every shortcut keeps the key in one file in the Shortcuts folder, so it is asked for once.
-export const KEY_FILE = 'advanced-automations-key.txt';
+// Every shortcut keeps the key in one Apple Note with this title, so it is asked for once.
+// Notes works on every iPhone; the Shortcuts iCloud Drive folder doesn't always exist, and Get
+// File fails outright when it doesn't.
+export const KEY_NOTE = 'Advanced Automations key';
+// Find Notes: newest note titled KEY_NOTE. Cherri has no syntax for content filters, so the
+// parameters are written as Shortcuts stores them.
+const FIND_KEY_NOTE = JSON.stringify({
+  WFContentItemFilter: { $plist: {
+    Value: {
+      WFActionParameterFilterPrefix: 1,
+      WFContentPredicateBoundedDate: false,
+      WFActionParameterFilterTemplates: [{ Property: 'Name', Operator: 4, Removable: true, Values: { String: KEY_NOTE, Unit: 4 } }],
+    },
+    WFSerializationType: 'WFContentPredicateTableTemplate',
+  } },
+  WFContentItemSortProperty: 'Creation Date',
+  WFContentItemSortOrder: 'Latest First',
+  WFContentItemLimitEnabled: true,
+  WFContentItemLimitNumber: 1,
+});
 
 const INCLUDES = ['calendar', 'crypto', 'documents', 'images', 'media', 'network', 'photos', 'sharing', 'text', 'web']
   .map((c) => `#include 'actions/${c}'`).join('\n');
@@ -33,10 +51,17 @@ const request = (url, { choice, image, audio, instructions, recipeVersion }) => 
   ? `fileRequest("${url}", "POST", ${audio}, {"Authorization": "Bearer {apiKey}"})`
   : `jsonRequest("${url}", "POST", {"input": "{input}"${choice ? ', "choice": "{choice}"' : ''}${image ? ', "image": "{image}"' : ''}${instructions ? ', "instructions": "{instructions}"' : ''}${recipeVersion ? `, "recipe_version": ${recipeVersion}` : ''}}, {"Authorization": "Bearer {apiKey}"})`);
 // iOS's import-question screen leaves Add Shortcut dead, so the key is asked for on the first
-// run instead and saved. A key the server rejects is overwritten so the next run asks again.
+// run instead and saved as a note. A key the server rejects gets a newer note without a key,
+// so the next run asks again.
 const keyBlock = `
-const savedKey = getFile("${KEY_FILE}", nil, false)
-@storedKey = "{savedKey}"
+const keyNotes = rawAction("is.workflow.actions.filter.notes", ${FIND_KEY_NOTE})
+@storedKey = ""
+@noteText = "{keyNotes}"
+if @noteText contains "aa_live_" {
+    const keyMatches = matchText('aa_live_[A-Za-z0-9_-]+', @noteText)
+    const noteKey = getFirstItem(keyMatches)
+    @storedKey = "{noteKey}"
+}
 if @storedKey !contains "aa_live_" {
     const pasted = getClipboard()
     @clip = "{pasted}"
@@ -45,8 +70,8 @@ if @storedKey !contains "aa_live_" {
         @suggested = trimWhitespace(@clip)
     }
     const entered = prompt("${KEY_PROMPT}", "Text", "{@suggested}")
-    @storedKey = "{entered}"
-    saveFile("${KEY_FILE}", @storedKey, true)
+    @storedKey = trimWhitespace(entered)
+    saveKeyNote("${KEY_NOTE}\n{@storedKey}")
 }
 `;
 const callBlock = (slug, sends) => `
@@ -59,8 +84,7 @@ if !result {
     const link = getValue(reply, "action_url")
     const badKey = getValue(reply, "key_invalid")
     if badKey {
-        @cleared = "reset"
-        saveFile("${KEY_FILE}", @cleared, true)
+        saveKeyNote("${KEY_NOTE}\nThis key stopped working. The next run asks for a new one.")
     }
     confirm("{problem}", "Advanced Automations")
     openURL("{link}")
@@ -72,6 +96,9 @@ export function cherriSource(a) {
   if (!body.includes('// @call')) throw new Error(`${a.slug}.cherri has no "// @call" marker`);
   return `${INCLUDES}
 #define name ${a.name}
+// A custom action with no return type swallows the line after it, hence the blank line.
+action 'com.apple.mobilenotes.SharingExtension' saveKeyNote(text body: 'WFCreateNoteInput')
+
 ${body.replace('// @call', keyBlock + callBlock(a.slug, {
     recipeVersion: a.recipeVersion,
     choice: /\bconst choice\b/.test(body),
@@ -81,13 +108,14 @@ ${body.replace('// @call', keyBlock + callBlock(a.slug, {
   }))}`;
 }
 
-// Checks the key comes from the saved file, not an import question: iOS's setup screen for
+// Checks the key comes from the saved note, not an import question or a file: iOS's setup screen for
 // those never lets Add Shortcut through.
 function checkKeySetup(xml) {
   if (/<key>WFWorkflowImportQuestions<\/key>\s*<array>\s*<dict>/.test(xml)) {
     throw new Error('Shortcut has an import question. The key is asked for on first run instead.');
   }
-  if (!xml.includes(`<string>${KEY_FILE}</string>`)) throw new Error(`Shortcut does not read ${KEY_FILE}`);
+  if (!xml.includes('<string>is.workflow.actions.filter.notes</string>')) throw new Error('Shortcut does not look up the key note');
+  if (xml.includes('<string>is.workflow.actions.documentpicker.open</string>')) throw new Error('Shortcut reads a file; Get File fails when the Shortcuts folder is missing');
 }
 
 // macOS signs locally without silently uploading source to a third-party fallback.

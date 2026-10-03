@@ -5,7 +5,7 @@ AI building blocks for iOS Shortcuts (Ask AI, Transcribe Audio, Pick a Category 
 Runs on Cloudflare Workers: [Hono](https://hono.dev) for routing, D1 for the database, the Workers AI binding for inference, and Workers static assets for `public/`.
 
 - **Pages:** landing (`/`), catalog of blocks and shortcuts (`/automations`), detail, install page (`/automations/<slug>/install`), pricing, login, signup, account.
-- **Getting a shortcut:** Get → sign in (Google or Apple accounts start with $0.25 of credit, `STARTER_CREDIT_USD` to change) → the install page makes a key for that shortcut, copies it and opens `shortcuts://import-shortcut` with the signed file. The first shortcut run asks for the key and saves it to `advanced-automations-key.txt` in the Shortcuts folder, which every shortcut shares. (Import questions are not used: iOS's setup screen for them leaves Add Shortcut unresponsive.)
+- **Getting a shortcut:** Get → sign in (Google or Apple accounts start with $0.25 of credit, `STARTER_CREDIT_USD` to change) → the install page makes a key for that shortcut, copies it and opens `shortcuts://import-shortcut` with the signed file. The first shortcut run asks for the key and saves it in an Apple Note titled "Advanced Automations key", which every shortcut reads. (A file in the Shortcuts iCloud Drive folder failed outright on phones where that folder doesn't exist.) (Import questions are not used: iOS's setup screen for them leaves Add Shortcut unresponsive.)
 - **Login:** email and password, PBKDF2-SHA256 hashes (Web Crypto, 100k iterations), server-side sessions in an httpOnly cookie, CSRF tokens on every form, rate-limited login.
 - **Payments:** Stripe Checkout top-ups ($5, $10, $25, $50). Credit is added by the `checkout.session.completed` webhook and again on the success redirect, both idempotent.
 - **Inference proxy:** `POST /api/v1/generate` with `Authorization: Bearer aa_live_...`. It reserves the worst-case cost before calling Workers AI, then refunds the difference, so concurrent calls cannot overdraw. Every change lands in a ledger shown on the account page.
@@ -131,15 +131,16 @@ Each call reserves its worst-case cost first, then charges actual token usage an
 
 ## Shortcut files
 
-Each automation in `src/catalog.js` has a source file at `shortcuts/<slug>.cherri` in [Cherri](https://github.com/electrikmilk/cherri), a language that compiles to Shortcuts. `npm run shortcuts` wraps each one with the saved-key lookup and the API call, compiles it, signs it and writes `public/shortcuts/<slug>.shortcut`. On macOS, signing uses Apple's local `shortcuts sign` command without falling back to a third-party service. Other platforms use Cherri's configured signing service; building Log My Meal currently requires macOS `plutil` for its compiled-action validation. Commit the signed files.
+Each automation in `src/catalog.js` has a source file at `shortcuts/<slug>.cherri` in [Cherri](https://github.com/electrikmilk/cherri), a language that compiles to Shortcuts. `npm run shortcuts` wraps each one with the saved-key note lookup and the API call, compiles it, signs it and writes `public/shortcuts/<slug>.shortcut`. On macOS, signing uses Apple's local `shortcuts sign` command without falling back to a third-party service. Other platforms use Cherri's configured signing service; building Log My Meal currently requires macOS `plutil` for its compiled-action validation. Commit the signed files.
 
-The tested compiler revision needs two patches: Health quantities, and unique `GroupingIdentifier`s (with `--derive-uuids`, every if, menu and repeat in a shortcut otherwise gets the same one). Build it from the directory beside this repository:
+The tested compiler revision needs three patches: Health quantities, `rawAction` parameters passed through verbatim as `{"$plist": ...}` (for the key note's Find Notes filter), and unique `GroupingIdentifier`s (with `--derive-uuids`, every if, menu and repeat in a shortcut otherwise gets the same one). Build it from the directory beside this repository:
 
 ```sh
 git clone https://github.com/electrikmilk/cherri && cd cherri
 git checkout a66db15b7f247f3121726c2a2b72becfeef3d96b
 git apply ../iPhoneAutomations/scripts/cherri-health-quantity.patch
 git apply ../iPhoneAutomations/scripts/cherri-grouping-uuids.patch
+git apply ../iPhoneAutomations/scripts/cherri-raw-plist.patch
 go build -o ./cherri .
 ```
 

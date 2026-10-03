@@ -34,5 +34,6 @@ export function verifyMealWorkflow(workflow) {
     assert.equal(params.WFQuantitySampleQuantity.Value.Magnitude.Value.OutputUUID, shown[name], 'Saved value must equal the reviewed value');
   }
   assert.equal(workflow.WFWorkflowImportQuestions?.length ?? 0, 0, 'The key is asked for on first run, not on import');
-  assert.ok(actions.some(a => a.WFWorkflowActionIdentifier === 'is.workflow.actions.documentpicker.open' && a.WFWorkflowActionParameters.WFGetFilePath === 'advanced-automations-key.txt'), 'Must read the saved key');
+  assert.ok(actions.some(a => a.WFWorkflowActionIdentifier === 'is.workflow.actions.filter.notes'), 'Must look up the saved key note');
+  assert.ok(!actions.some(a => a.WFWorkflowActionIdentifier === 'is.workflow.actions.documentpicker.open'), 'Get File fails when the Shortcuts folder is missing');
 }
