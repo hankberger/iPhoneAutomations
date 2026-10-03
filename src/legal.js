@@ -1,9 +1,9 @@
 // Terms of Service and Privacy Policy. A plain-language starting point, not legal advice:
 // have a lawyer review before relying on it. Update LEGAL.updated whenever the text changes.
-import { layout } from './views.js';
+import { layout, ratesTable } from './views.js';
 
 export const LEGAL = {
-  updated: 'October 2, 2026',
+  updated: 'October 3, 2026',
   contact: 'support@iphoneadvanced.com',
 };
 
@@ -22,7 +22,6 @@ const page = ({ title, path, user, intro, body, appMode = false }) => layout({
 </section>
 <article class="wrap narrow legal">${appMode ? body
     .replaceAll('href="/terms"', 'href="/app/terms"').replaceAll('href="/privacy"', 'href="/app/privacy"')
-    .replaceAll('href="/pricing"', 'href="/app/pricing"')
     .replaceAll('<a href="/account">account page</a>', 'Account tab in the app') : body}</article>`,
 });
 
@@ -43,11 +42,14 @@ export const terms = ({ user, appMode = false }) => page({
 <h2>3. Credit and payments</h2>
 <ul>
   <li>Credit bought inside the iPhone app uses Apple In-App Purchase. The App Store shows your localized price before purchase. Packs add a separate stated amount of USD-denominated usage credit to your signed-in account. The independent website uses Stripe. We do not see or store your card number.</li>
-  <li>Each AI request is charged against your balance at the rates on the <a href="/pricing">pricing page</a>. Those rates include our margin over what our AI providers charge us, and we may change them. New rates apply to requests made after the change, never to credit already spent.</li>
+  <li>Each AI request is charged against your balance at the <a href="#rates">rates below</a>. Those rates include our margin over what our AI providers charge us, and we may change them. New rates apply to requests made after the change, never to credit already spent.</li>
   <li>Credit does not expire. It has no cash value, cannot be transferred, and is not a deposit account.</li>
   <li>Apple handles App Store refund requests through <a href="https://reportaproblem.apple.com">Report a Problem</a>. For web-payment issues, email ${mail}. Applicable consumer rights are unaffected. If a purchase is refunded or revoked, we remove its credit up to the available balance; a reversed refund restores only the amount previously removed.</li>
   <li>Promotional credit, such as a sign-up bonus, may be withdrawn if it is abused (for example, by creating many accounts).</li>
 </ul>
+<h3 id="rates">Rates</h3>
+<p>Per million tokens, in US dollars.</p>
+${ratesTable()}
 
 <h2>4. Acceptable use</h2>
 <p>Do not use the service to:</p>

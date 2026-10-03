@@ -310,12 +310,12 @@ app.get('/download/:slug', async (c) => {
     },
   });
 });
-app.get('/pricing', (c) => c.html(views.pricing({ user: c.get('user') })));
+app.get('/pricing', (c) => c.redirect('/terms#rates', 301));
 app.get('/terms', (c) => c.html(legal.terms({ user: c.get('user') })));
 app.get('/privacy', (c) => c.html(legal.privacy({ user: c.get('user') })));
 app.get('/app/terms', c => c.html(legal.terms({ appMode: true })));
 app.get('/app/privacy', c => c.html(legal.privacy({ appMode: true })));
-app.get('/app/pricing', c => c.html(views.pricing({ appMode: true })));
+app.get('/app/pricing', (c) => c.redirect('/app/terms#rates', 301));
 
 app.get('/admin', requireAdmin, async (c) => {
   return c.html(admin({ user: c.get('user'), data: await dashboardData(c.env.DB, c.req.query('days')) }));
