@@ -312,9 +312,6 @@ input:focus { outline: 3px solid color-mix(in srgb, #7c5cff 45%, transparent); o
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .wl-banner { background: color-mix(in srgb, #7c5cff 10%, var(--bg)); border-bottom: 1px solid color-mix(in srgb, #7c5cff 18%, var(--line)); }
 .wl-row { display: flex; align-items: center; gap: 14px; min-height: 60px; padding-top: 10px; padding-bottom: 10px; flex-wrap: wrap; }
-.wl-tiles { display: grid; grid-template-columns: repeat(2, 11px); gap: 3px; flex: none; transform: rotate(-8deg); }
-.wl-tiles i { width: 11px; height: 11px; border-radius: 4px; background: #ff6b3d; }
-.wl-tiles i:nth-child(2) { background: #7c5cff; } .wl-tiles i:nth-child(3) { background: #10b981; } .wl-tiles i:nth-child(4) { background: #0ea5e9; }
 .wl-copy { margin: 0; flex: 1; min-width: 0; font-size: 0.95rem; }
 .wl-copy strong { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; }
 .wl-copy span { color: var(--muted); }

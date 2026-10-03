@@ -66,6 +66,9 @@ test('pages render', async () => {
   assert.equal(pricing.headers.get('location'), '/terms#rates');
   assert.match(await (await req('/terms')).text(), /id="rates"[\s\S]*Advanced text/);
   assert.doesNotMatch(await (await req('/')).text(), /href="\/pricing"/);
+  const catalog = await (await req('/automations')).text();
+  assert.match(catalog, /<title>Advanced iPhone Automations<\/title>/);
+  assert.doesNotMatch(catalog, /aria-current="page">Blocks</);
   const search = await (await req('/automations?q=meeting')).text();
   assert.match(search, /Summarize My Meeting Notes/);
   assert.match(search, /1 result for/);

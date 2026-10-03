@@ -48,7 +48,6 @@ const waitlistForm = (email = '') => `
 const waitlistBanner = `${BANNER_START}
 <aside class="wl-banner" aria-label="Mobile app waitlist">
   <div class="wrap wl-row">
-    <span class="wl-tiles" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
     <p class="wl-copy"><strong>Mobile app coming soon.</strong> <span>Be the first to know when it lands on the App Store.</span></p>
     <details class="wl-join">
       <summary class="btn btn-sm">Join the waitlist</summary>${waitlistForm()}
@@ -57,14 +56,15 @@ const waitlistBanner = `${BANNER_START}
 </aside>
 ${BANNER_END}`;
 
-export function layout({ title, user, body, active = '', stylesheet = '', appMode = false }) {
+export function layout({ title, pageTitle, user, body, active = '', stylesheet = '', appMode = false }) {
+  const fullTitle = pageTitle || (title ? `${title} · Advanced Automations` : 'Advanced Automations: AI building blocks for iOS Shortcuts');
   const nav = (href, label) => `<a href="${href}"${active === href ? ' aria-current="page"' : ''}>${label}</a>`;
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${e(title ? `${title} · Advanced Automations` : 'Advanced Automations: AI building blocks for iOS Shortcuts')}</title>
+<title>${e(fullTitle)}</title>
 <meta name="description" content="AI building blocks for iOS Shortcuts. Drop Ask AI, Transcribe Audio, Pick a Category and more into any shortcut you build. Pay only for the AI you use.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -72,7 +72,7 @@ export function layout({ title, user, body, active = '', stylesheet = '', appMod
 <meta name="theme-color" content="#fbfbfa">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Advanced Automations">
-<meta property="og:title" content="${e(title ? `${title} · Advanced Automations` : 'Advanced Automations: AI building blocks for iOS Shortcuts')}">
+<meta property="og:title" content="${e(fullTitle)}">
 <meta property="og:description" content="AI building blocks for iOS Shortcuts. Drop Ask AI, Transcribe Audio, Pick a Category and more into any shortcut you build. Pay only for the AI you use.">
 <meta property="og:image" content="https://iphoneadvanced.com/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -88,7 +88,7 @@ ${appMode ? '' : waitlistBanner}
   <div class="wrap row">
     <a class="brand" href="${appMode ? '/app/privacy' : '/'}">${LOGO}<span>Advanced Automations</span></a>
     ${appMode ? '' : `<nav class="nav">
-      ${nav('/automations', 'Blocks')}
+      ${nav('/automations', 'Automations')}
       ${user?.is_admin ? nav('/admin', 'Analytics') : ''}
       ${user ? `<a class="btn btn-sm" href="/account">Account</a>` : `<a class="btn btn-sm" href="/login">Log in</a>`}
     </nav>`}
@@ -222,7 +222,7 @@ export function catalog({ user, category, query = '' }) {
   ${grid(AUTOMATIONS.filter((a) => !a.block))}
 </section>`;
   return layout({
-    title: 'Blocks',
+    pageTitle: 'Advanced iPhone Automations',
     user,
     active: '/automations',
     body: `
@@ -253,7 +253,7 @@ export function automationDetail({ user, a, apiUrl }) {
     active: '/automations',
     body: `
 <section class="wrap detail">
-  <a class="link small" href="/automations">← ${a.block ? 'All blocks' : 'All blocks and shortcuts'}</a>
+  <a class="link small" href="/automations">← All automations</a>
   <div class="detail-head c-${a.color}">
     <span class="big-ic">${icon(a.icon)}</span>
     <div class="grow">
@@ -412,7 +412,7 @@ export function account({ user, keys, history, linked = [], newKey, notice, bill
       <span class="mini c-violet">${icon('key')}</span>
       <div class="grow"><strong>${e(k.name)}</strong><div class="small muted">${e(k.prefix)}… · created ${date(k.created_at)}${k.last_used_at ? ` · last used ${date(k.last_used_at)}` : ''}</div></div>
       <form method="post" action="/account/keys/${k.id}/revoke"><input type="hidden" name="csrf" value="${e(user.csrf)}"><button class="btn btn-soft btn-sm" type="submit">Revoke</button></form>
-    </li>`).join('') : '<li class="muted small empty">Nothing added yet. <a href="/automations">Browse blocks</a> and tap Get.</li>';
+    </li>`).join('') : '<li class="muted small empty">Nothing added yet. <a href="/automations">Browse automations</a> and tap Get.</li>';
   const historyRows = history.length ? history.map((h) => `
     <tr><td>${date(h.created_at)}</td><td>${e(h.description)}</td><td class="num ${h.amount_micros > 0 ? 'pos' : ''}">${h.amount_micros > 0 ? '+' : '−'}${formatUsd(Math.abs(h.amount_micros), Math.abs(h.amount_micros) < 10_000 ? 4 : 2)}</td></tr>`).join('')
     : '<tr><td colspan="3" class="muted small">Nothing yet. Top up to get started.</td></tr>';
@@ -469,7 +469,7 @@ export function account({ user, keys, history, linked = [], newKey, notice, bill
 
 export const notFound = ({ user }) => layout({
   title: 'Not found', user,
-  body: '<section class="wrap page-head center"><h1>Nothing here</h1><p class="lede">That page does not exist. <a href="/automations">Browse blocks</a>.</p></section>',
+  body: '<section class="wrap page-head center"><h1>Nothing here</h1><p class="lede">That page does not exist. <a href="/automations">Browse automations</a>.</p></section>',
 });
 
 export function waitlistPage({ user, status, error, email = '' }) {
