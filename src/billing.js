@@ -5,8 +5,8 @@ export const TOPUP_AMOUNTS = [5, 10, 25, 50]; // USD
 export const formatUsd = (micros, digits = 2) =>
   `$${(micros / MICROS).toFixed(digits)}`;
 
-export function createBilling(db, { stripeKey, webhookSecret, appUrl } = {}) {
-  const stripe = stripeKey ? new Stripe(stripeKey, { httpClient: Stripe.createFetchHttpClient() }) : null;
+export function createBilling(db, { stripeKey, webhookSecret, appUrl, client } = {}) {
+  const stripe = client ?? (stripeKey ? new Stripe(stripeKey, { httpClient: Stripe.createFetchHttpClient() }) : null);
   const q = {
     credit: db.prepare('UPDATE users SET balance_micros = balance_micros + ? WHERE id = ?'),
     // Only succeeds when the balance covers the debit, which makes reservations race-safe.
@@ -45,9 +45,9 @@ export function createBilling(db, { stripeKey, webhookSecret, appUrl } = {}) {
   async function createCheckout(user, dollars) {
     if (!stripe) throw new Error('Stripe is not configured. Set STRIPE_SECRET_KEY.');
     if (!TOPUP_AMOUNTS.includes(dollars)) throw new Error('Unsupported amount.');
-    const session = await stripe.checkout.sessions.create({
+    const create = (customer) => stripe.checkout.sessions.create({
       mode: 'payment',
-      ...(user.stripe_customer_id ? { customer: user.stripe_customer_id } : { customer_email: user.email, customer_creation: 'always' }),
+      ...(customer ? { customer } : { customer_email: user.email, customer_creation: 'always' }),
       client_reference_id: String(user.id),
       line_items: [{
         quantity: 1,
@@ -61,6 +61,16 @@ export function createBilling(db, { stripeKey, webhookSecret, appUrl } = {}) {
       success_url: `${appUrl}/account?checkout={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/account?checkout=cancelled`,
     });
+    let session;
+    try {
+      session = await create(user.stripe_customer_id);
+    } catch (err) {
+      // A customer saved under the other key mode (sandbox vs live) or deleted in the
+      // dashboard no longer exists; start fresh and let fulfillment save the new one.
+      if (!(user.stripe_customer_id && err?.code === 'resource_missing' && err?.param === 'customer')) throw err;
+      await q.setCustomer.bind(null, user.id).run();
+      session = await create(null);
+    }
     return session.url;
   }
 
