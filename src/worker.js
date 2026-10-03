@@ -295,18 +295,22 @@ app.on(['GET', 'POST'], '/auth/:provider/callback', async (c) => {
 // its URL scheme. `state` is the app's own nonce, echoed back so it can match the reply.
 const APP_CALLBACK = 'iphoneadvanced://connect';
 const appState = (s) => (typeof s === 'string' && /^[\w-]{16,64}$/.test(s) ? s : null);
+// form-action is enforced by the page that holds the form, including where its POST redirects,
+// so the Connect page itself has to allow the app's scheme. Set on the redirect alone, browsers
+// block the hop to iphoneadvanced:// and the Connect button looks dead.
+const APP_CONNECT_CSP = SECURITY_HEADERS['Content-Security-Policy'].replace("form-action 'self'", "form-action 'self' iphoneadvanced:");
 app.get('/app/connect', requireUser, (c) => {
   const state = appState(c.req.query('state'));
   if (!state) return c.html(views.notFound({ user: c.get('user') }), 404);
   c.header('Cache-Control', 'no-store');
+  c.header('Content-Security-Policy', APP_CONNECT_CSP);
   return c.html(views.appConnect({ user: c.get('user'), state }));
 });
 app.post('/app/connect', requireUser, async (c) => {
   const state = appState(c.get('form').state);
   if (!state) return c.text('That sign-in link expired. Go back to the app and try again.', 400);
   const key = await c.get('ctx').auth.createApiKey(c.get('user').id, 'iPhone app', { canMint: true });
-  // form-action also covers where the form redirects, so let this one reach the app.
-  c.header('Content-Security-Policy', SECURITY_HEADERS['Content-Security-Policy'].replace("form-action 'self'", "form-action 'self' iphoneadvanced:"));
+  c.header('Content-Security-Policy', APP_CONNECT_CSP);
   return c.redirect(`${APP_CALLBACK}?${new URLSearchParams({ key, state })}`, 303);
 });
 

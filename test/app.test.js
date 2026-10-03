@@ -348,7 +348,10 @@ test('iPhone app: catalog, connect handoff and install keys', async () => {
 
   await form('/signup', { email: 'app@b.co', password: 'correct horse battery' });
   assert.equal((await req('/app/connect?state=short')).status, 404);
-  const html = await (await req(`/app/connect?state=${state}`)).text();
+  res = await req(`/app/connect?state=${state}`);
+  // The page holding the form must allow the app scheme, or the browser blocks the redirect.
+  assert.match(res.headers.get('content-security-policy'), /form-action 'self' iphoneadvanced:/);
+  const html = await res.text();
   const csrf = html.match(/name="csrf" value="([^"]+)"/)[1];
   assert.equal((await form('/app/connect', { csrf: 'wrong', state })).status, 403);
   res = await form('/app/connect', { csrf, state });
