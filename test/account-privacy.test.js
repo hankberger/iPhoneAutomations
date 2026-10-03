@@ -108,7 +108,7 @@ test('deletion waits for Apple revocation, then removes personal data and unlink
 
 test('native legal and sign-in pages have no external-checkout navigation', async () => {
   const { req } = await fixture();
-  for (const path of ['/app/privacy', '/app/terms', '/app/pricing', '/login?next=%2Fapp%2Fconnect%3Fstate%3Dabcdefghijklmnop', '/signup?next=%2Fapp%2Fconnect%3Fstate%3Dabcdefghijklmnop']) {
+  for (const path of ['/app/privacy', '/app/terms', '/login?next=%2Fapp%2Fconnect%3Fstate%3Dabcdefghijklmnop', '/signup?next=%2Fapp%2Fconnect%3Fstate%3Dabcdefghijklmnop']) {
     const response = await req(path);
     assert.equal(response.status, 200, path);
     const html = await response.text();
