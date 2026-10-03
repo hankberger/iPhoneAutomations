@@ -4,7 +4,7 @@
   "description": "",
   "scripts": {
     "dev": "wrangler dev",
-    "dev:local": "wrangler d1 migrations apply advanced-automations --local --env local && wrangler dev --env local",
+    "dev:local": "wrangler d1 migrations apply advanced-automations --local --env local && wrangler d1 execute waitlist --local --env local --file scripts/waitlist-local.sql && wrangler dev --env local",
     "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply advanced-automations --local",
     "db:migrate:remote": "wrangler d1 migrations apply advanced-automations --remote",
