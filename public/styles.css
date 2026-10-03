@@ -302,3 +302,27 @@ input:focus { outline: 3px solid color-mix(in srgb, #7c5cff 45%, transparent); o
   .install-card { padding: 28px 20px; }
 }
 .see-all { margin: 28px 0 40px; }
+
+/* Mobile app waitlist banner */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.wl-banner { background: color-mix(in srgb, #7c5cff 10%, var(--bg)); border-bottom: 1px solid color-mix(in srgb, #7c5cff 18%, var(--line)); }
+.wl-row { display: flex; align-items: center; gap: 14px; min-height: 60px; padding-top: 10px; padding-bottom: 10px; flex-wrap: wrap; }
+.wl-tiles { display: grid; grid-template-columns: repeat(2, 11px); gap: 3px; flex: none; transform: rotate(-8deg); }
+.wl-tiles i { width: 11px; height: 11px; border-radius: 4px; background: #ff6b3d; }
+.wl-tiles i:nth-child(2) { background: #7c5cff; } .wl-tiles i:nth-child(3) { background: #10b981; } .wl-tiles i:nth-child(4) { background: #0ea5e9; }
+.wl-copy { margin: 0; flex: 1; min-width: 0; font-size: 0.95rem; }
+.wl-copy strong { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; }
+.wl-copy span { color: var(--muted); }
+.wl-join { flex: none; }
+.wl-join summary, .wl-form .btn { list-style: none; background: #7c5cff; color: #fff; }
+.wl-join summary::-webkit-details-marker { display: none; }
+.wl-join[open] summary { display: none; }
+.wl-form { display: flex; gap: 8px; }
+.wl-form input:not(.hp) { height: 40px; width: 260px; max-width: 100%; border-radius: 12px; }
+.wl-page-form { display: grid; gap: 14px; }
+@media (max-width: 720px) {
+  .wl-copy span { display: none; }
+  .wl-join[open] { flex-basis: 100%; }
+  .wl-form input:not(.hp) { flex: 1; width: auto; min-width: 0; }
+}
