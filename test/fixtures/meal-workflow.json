@@ -1,49 +1,39 @@
 {
-  "sourceSHA256": "a1fb9a8450a14badd56f545a96e521201d508eff7e094ba9fe39900fa239f94d",
-  "signedSHA256": "897796de4443136280a88dc09e9108081b3ef8328400c83f28e2945476e75aa8",
+  "sourceSHA256": "cb15149acbe594cbd24158b538383be79855464ba896cf6796bfbbb61389c5c9",
+  "signedSHA256": "3823de9471dc1391404831f53a51f0c194d53e377840c0318513292d6be15e4f",
   "workflow": {
-    "WFWorkflowTriggers": [],
-    "WFWorkflowMinimumClientVersionString": "900",
-    "WFWorkflowMinimumClientVersion": 900,
-    "WFWorkflowIcon": {
-      "WFWorkflowIconStartColor": 4292093695,
-      "WFWorkflowIconGlyphNumber": 59740
-    },
-    "WFWorkflowClientVersion": "5037.0.17",
-    "WFWorkflowOutputContentItemClasses": [],
-    "WFWorkflowHasOutputFallback": false,
-    "WFWorkflowNoInputBehavior": {},
+    "WFQuickActionSurfaces": [],
     "WFWorkflowActions": [
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
         "WFWorkflowActionParameters": {
           "WFInput": {
             "Value": {
-              "VariableName": "ShortcutInput",
-              "Type": "ExtensionInput"
+              "Type": "ExtensionInput",
+              "VariableName": "ShortcutInput"
             },
             "WFSerializationType": "WFTextTokenAttachment"
           },
-          "WFVariableName": "photo",
-          "WFSerializationType": "WFTextTokenAttachment"
+          "WFSerializationType": "WFTextTokenAttachment",
+          "WFVariableName": "photo"
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
+          "GroupingIdentifier": "1ba01dc6-e48a-5c40-b8e8-7d7648485740",
+          "WFCondition": 101,
+          "WFControlFlowMode": 0,
           "WFInput": {
             "Type": "Variable",
             "Variable": {
               "Value": {
-                "VariableName": "ShortcutInput",
-                "Type": "ExtensionInput"
+                "Type": "ExtensionInput",
+                "VariableName": "ShortcutInput"
               },
               "WFSerializationType": "WFTextTokenAttachment"
             }
-          },
-          "WFControlFlowMode": 0,
-          "GroupingIdentifier": "4812636f-ec95-541f-adaf-21394d428b1c",
-          "WFCondition": 101
+          }
         }
       },
       {
@@ -58,14 +48,14 @@
         "WFWorkflowActionParameters": {
           "WFInput": {
             "Value": {
+              "OutputName": "TakePhoto",
               "OutputUUID": "06629bc1-3ff1-5e50-a0e4-3fa14ffadf05",
-              "Type": "ActionOutput",
-              "OutputName": "TakePhoto"
+              "Type": "ActionOutput"
             },
             "WFSerializationType": "WFTextTokenAttachment"
           },
-          "WFVariableName": "photo",
-          "WFSerializationType": "WFTextTokenAttachment"
+          "WFSerializationType": "WFTextTokenAttachment",
+          "WFVariableName": "photo"
         }
       },
       {
@@ -74,9 +64,9 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
-          "WFControlFlowMode": 2,
-          "GroupingIdentifier": "4812636f-ec95-541f-adaf-21394d428b1c",
-          "UUID": "4812636f-ec95-541f-adaf-21394d428b1c"
+          "GroupingIdentifier": "1ba01dc6-e48a-5c40-b8e8-7d7648485740",
+          "UUID": "4812636f-ec95-541f-adaf-21394d428b1c",
+          "WFControlFlowMode": 2
         }
       },
       {
@@ -85,75 +75,419 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.image.resize",
         "WFWorkflowActionParameters": {
-          "WFImageResizeKey": "Longest Edge",
+          "CustomOutputName": "small",
+          "UUID": "daea38fb-6783-53bf-aac0-aeb1ed5a681d",
           "WFImage": {
             "Value": {
-              "VariableName": "photo",
-              "Type": "Variable"
+              "Type": "Variable",
+              "VariableName": "photo"
             },
             "WFSerializationType": "WFTextTokenAttachment"
           },
-          "CustomOutputName": "small",
-          "UUID": "daea38fb-6783-53bf-aac0-aeb1ed5a681d",
+          "WFImageResizeKey": "Longest Edge",
           "WFImageResizeLength": "1024"
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.image.convert",
         "WFWorkflowActionParameters": {
-          "WFImageCompressionQuality": 0.7,
-          "WFInput": {
-            "Value": {
-              "OutputUUID": "daea38fb-6783-53bf-aac0-aeb1ed5a681d",
-              "Type": "ActionOutput",
-              "OutputName": "small"
-            },
-            "WFSerializationType": "WFTextTokenAttachment"
-          },
           "CustomOutputName": "jpeg",
           "UUID": "82c922fe-bc57-51a8-938a-32741d2782d6",
+          "WFImageCompressionQuality": 0.7,
+          "WFImageFormat": "JPEG",
           "WFImagePreserveMetadata": false,
-          "WFImageFormat": "JPEG"
+          "WFInput": {
+            "Value": {
+              "OutputName": "small",
+              "OutputUUID": "daea38fb-6783-53bf-aac0-aeb1ed5a681d",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.base64encode",
         "WFWorkflowActionParameters": {
+          "CustomOutputName": "image",
+          "UUID": "36d9198e-9642-569d-a70c-d10c186cf8a8",
           "WFInput": {
             "Value": {
+              "OutputName": "jpeg",
               "OutputUUID": "82c922fe-bc57-51a8-938a-32741d2782d6",
-              "Type": "ActionOutput",
-              "OutputName": "jpeg"
+              "Type": "ActionOutput"
             },
             "WFSerializationType": "WFTextTokenAttachment"
           },
-          "CustomOutputName": "image",
-          "UUID": "36d9198e-9642-569d-a70c-d10c186cf8a8",
           "input": "Encode"
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
         "WFWorkflowActionParameters": {
-          "WFTextActionText": "Photo of a meal",
           "CustomOutputName": "input",
-          "UUID": "d367c278-ccce-5bff-9a39-8cc99be3d79f"
+          "UUID": "d367c278-ccce-5bff-9a39-8cc99be3d79f",
+          "WFTextActionText": "Photo of a meal"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.documentpicker.open",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "savedKey",
+          "UUID": "e0e7b079-fb6a-56e9-8926-bebe139bbd6a",
+          "WFFileErrorIfNotFound": false,
+          "WFGetFilePath": "advanced-automations-key.txt"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "Text",
+          "UUID": "bfd35fee-74fc-5bbe-8704-1452ea9f503d",
+          "WFTextActionText": {
+            "Value": {
+              "attachmentsByRange": {
+                "{0, 1}": {
+                  "OutputName": "savedKey",
+                  "OutputUUID": "e0e7b079-fb6a-56e9-8926-bebe139bbd6a",
+                  "Type": "ActionOutput"
+                }
+              },
+              "string": "￼"
+            },
+            "WFSerializationType": "WFTextTokenString"
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
+        "WFWorkflowActionParameters": {
+          "WFInput": {
+            "Value": {
+              "OutputName": "Text",
+              "OutputUUID": "bfd35fee-74fc-5bbe-8704-1452ea9f503d",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          },
+          "WFSerializationType": "WFTextTokenAttachment",
+          "WFVariableName": "storedKey"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+          "GroupingIdentifier": "7ea1b7ca-0ef2-5074-807b-36ed1848076e",
+          "WFCondition": 999,
+          "WFConditionalActionString": "aa_live_",
+          "WFControlFlowMode": 0,
+          "WFInput": {
+            "Type": "Variable",
+            "Variable": {
+              "Value": {
+                "Type": "Variable",
+                "VariableName": "storedKey"
+              },
+              "WFSerializationType": "WFTextTokenAttachment"
+            }
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getclipboard",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "pasted",
+          "UUID": "7dde1a24-832b-5d9e-babf-8e0104f9aa41"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "Text 1",
+          "UUID": "b816559b-da5c-5912-a869-ffa71abce72c",
+          "WFTextActionText": {
+            "Value": {
+              "attachmentsByRange": {
+                "{0, 1}": {
+                  "OutputName": "pasted",
+                  "OutputUUID": "7dde1a24-832b-5d9e-babf-8e0104f9aa41",
+                  "Type": "ActionOutput"
+                }
+              },
+              "string": "￼"
+            },
+            "WFSerializationType": "WFTextTokenString"
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
+        "WFWorkflowActionParameters": {
+          "WFInput": {
+            "Value": {
+              "OutputName": "Text 1",
+              "OutputUUID": "b816559b-da5c-5912-a869-ffa71abce72c",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          },
+          "WFSerializationType": "WFTextTokenAttachment",
+          "WFVariableName": "clip"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "Text 2",
+          "UUID": "f8ed1403-2c70-560d-b44e-f2a9bd2cab46",
+          "WFTextActionText": ""
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
+        "WFWorkflowActionParameters": {
+          "WFInput": {
+            "Value": {
+              "OutputName": "Text 2",
+              "OutputUUID": "f8ed1403-2c70-560d-b44e-f2a9bd2cab46",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          },
+          "WFSerializationType": "WFTextTokenAttachment",
+          "WFVariableName": "suggested"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+          "GroupingIdentifier": "3f0332be-7d13-5660-a8b2-69c32e30fedd",
+          "WFCondition": 99,
+          "WFConditionalActionString": "aa_live_",
+          "WFControlFlowMode": 0,
+          "WFInput": {
+            "Type": "Variable",
+            "Variable": {
+              "Value": {
+                "Type": "Variable",
+                "VariableName": "clip"
+              },
+              "WFSerializationType": "WFTextTokenAttachment"
+            }
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.text.trimwhitespace",
         "WFWorkflowActionParameters": {
-          "WFInput": "",
+          "CustomOutputName": "TrimWhitespace",
+          "UUID": "d5290863-a16f-5d5e-a1a6-7a954fb67ed0",
+          "WFInput": {
+            "Value": {
+              "attachmentsByRange": {
+                "{0, 1}": {
+                  "Type": "Variable",
+                  "VariableName": "clip"
+                }
+              },
+              "string": "￼"
+            },
+            "WFSerializationType": "WFTextTokenString"
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
+        "WFWorkflowActionParameters": {
+          "WFInput": {
+            "Value": {
+              "OutputName": "TrimWhitespace",
+              "OutputUUID": "d5290863-a16f-5d5e-a1a6-7a954fb67ed0",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          },
+          "WFSerializationType": "WFTextTokenAttachment",
+          "WFVariableName": "suggested"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.nothing"
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+          "GroupingIdentifier": "3f0332be-7d13-5660-a8b2-69c32e30fedd",
+          "UUID": "4812636f-ec95-541f-adaf-21394d428b1c",
+          "WFControlFlowMode": 2
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.nothing"
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.ask",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "entered",
+          "UUID": "dcb17c3f-b25a-5731-891b-205f5ddaf01e",
+          "WFAskActionDefaultAnswer": {
+            "Value": {
+              "attachmentsByRange": {
+                "{0, 1}": {
+                  "Type": "Variable",
+                  "VariableName": "suggested"
+                }
+              },
+              "string": "￼"
+            },
+            "WFSerializationType": "WFTextTokenString"
+          },
+          "WFAskActionPrompt": "Paste your Advanced Automations key. We copied it when you tapped Get. Lost it? Make one in your account at iphoneadvanced.com.",
+          "WFInputType": "Text"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "Text 3",
+          "UUID": "0b980b2a-a385-5897-8ee4-e6efa6d462ff",
+          "WFTextActionText": {
+            "Value": {
+              "attachmentsByRange": {
+                "{0, 1}": {
+                  "OutputName": "entered",
+                  "OutputUUID": "dcb17c3f-b25a-5731-891b-205f5ddaf01e",
+                  "Type": "ActionOutput"
+                }
+              },
+              "string": "￼"
+            },
+            "WFSerializationType": "WFTextTokenString"
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
+        "WFWorkflowActionParameters": {
+          "WFInput": {
+            "Value": {
+              "OutputName": "Text 3",
+              "OutputUUID": "0b980b2a-a385-5897-8ee4-e6efa6d462ff",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          },
+          "WFSerializationType": "WFTextTokenAttachment",
+          "WFVariableName": "storedKey"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.documentpicker.save",
+        "WFWorkflowActionParameters": {
+          "WFAskWhereToSave": false,
+          "WFFileDestinationPath": "advanced-automations-key.txt",
+          "WFInput": {
+            "Value": {
+              "Type": "Variable",
+              "VariableName": "storedKey"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          },
+          "WFSaveFileOverwrite": true
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.nothing"
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+          "GroupingIdentifier": "7ea1b7ca-0ef2-5074-807b-36ed1848076e",
+          "UUID": "4812636f-ec95-541f-adaf-21394d428b1c",
+          "WFControlFlowMode": 2
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.nothing"
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.text.trimwhitespace",
+        "WFWorkflowActionParameters": {
           "CustomOutputName": "apiKey",
-          "UUID": "bff43659-cbc8-56ea-aa9b-1c6b27a07c65"
+          "UUID": "bff43659-cbc8-56ea-aa9b-1c6b27a07c65",
+          "WFInput": {
+            "Value": {
+              "attachmentsByRange": {
+                "{0, 1}": {
+                  "Type": "Variable",
+                  "VariableName": "storedKey"
+                }
+              },
+              "string": "￼"
+            },
+            "WFSerializationType": "WFTextTokenString"
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
         "WFWorkflowActionParameters": {
+          "CustomOutputName": "response",
+          "UUID": "5cb2efc5-ac48-58f9-90de-7f7a35e688c2",
+          "WFHTTPBodyType": "JSON",
+          "WFHTTPHeaders": {
+            "Value": {
+              "WFDictionaryFieldValueItems": [
+                {
+                  "WFKey": {
+                    "Value": {
+                      "string": "Authorization"
+                    },
+                    "WFSerializationType": "WFTextTokenString"
+                  },
+                  "WFValue": {
+                    "Value": {
+                      "attachmentsByRange": {
+                        "{7, 1}": {
+                          "OutputName": "apiKey",
+                          "OutputUUID": "bff43659-cbc8-56ea-aa9b-1c6b27a07c65",
+                          "Type": "ActionOutput"
+                        }
+                      },
+                      "string": "Bearer ￼"
+                    },
+                    "WFSerializationType": "WFTextTokenString"
+                  }
+                }
+              ]
+            },
+            "WFSerializationType": "WFDictionaryFieldValue"
+          },
+          "WFHTTPMethod": "POST",
           "WFJSONValues": {
             "Value": {
               "WFDictionaryFieldValueItems": [
+                {
+                  "WFKey": {
+                    "Value": {
+                      "string": "input"
+                    },
+                    "WFSerializationType": "WFTextTokenString"
+                  },
+                  "WFValue": {
+                    "Value": {
+                      "attachmentsByRange": {
+                        "{0, 1}": {
+                          "OutputName": "input",
+                          "OutputUUID": "d367c278-ccce-5bff-9a39-8cc99be3d79f",
+                          "Type": "ActionOutput"
+                        }
+                      },
+                      "string": "￼"
+                    },
+                    "WFSerializationType": "WFTextTokenString"
+                  }
+                },
                 {
                   "WFKey": {
                     "Value": {
@@ -163,14 +497,14 @@
                   },
                   "WFValue": {
                     "Value": {
-                      "string": "￼",
                       "attachmentsByRange": {
                         "{0, 1}": {
+                          "OutputName": "image",
                           "OutputUUID": "36d9198e-9642-569d-a70c-d10c186cf8a8",
-                          "Type": "ActionOutput",
-                          "OutputName": "image"
+                          "Type": "ActionOutput"
                         }
-                      }
+                      },
+                      "string": "￼"
                     },
                     "WFSerializationType": "WFTextTokenString"
                   }
@@ -189,151 +523,186 @@
                     },
                     "WFSerializationType": "WFTextTokenString"
                   }
-                },
-                {
-                  "WFKey": {
-                    "Value": {
-                      "string": "input"
-                    },
-                    "WFSerializationType": "WFTextTokenString"
-                  },
-                  "WFValue": {
-                    "Value": {
-                      "string": "￼",
-                      "attachmentsByRange": {
-                        "{0, 1}": {
-                          "OutputUUID": "d367c278-ccce-5bff-9a39-8cc99be3d79f",
-                          "Type": "ActionOutput",
-                          "OutputName": "input"
-                        }
-                      }
-                    },
-                    "WFSerializationType": "WFTextTokenString"
-                  }
                 }
               ]
             },
             "WFSerializationType": "WFDictionaryFieldValue"
           },
-          "WFHTTPHeaders": {
-            "Value": {
-              "WFDictionaryFieldValueItems": [
-                {
-                  "WFKey": {
-                    "Value": {
-                      "string": "Authorization"
-                    },
-                    "WFSerializationType": "WFTextTokenString"
-                  },
-                  "WFValue": {
-                    "Value": {
-                      "string": "Bearer ￼",
-                      "attachmentsByRange": {
-                        "{7, 1}": {
-                          "OutputUUID": "bff43659-cbc8-56ea-aa9b-1c6b27a07c65",
-                          "Type": "ActionOutput",
-                          "OutputName": "apiKey"
-                        }
-                      }
-                    },
-                    "WFSerializationType": "WFTextTokenString"
-                  }
-                }
-              ]
-            },
-            "WFSerializationType": "WFDictionaryFieldValue"
-          },
-          "UUID": "5cb2efc5-ac48-58f9-90de-7f7a35e688c2",
-          "WFHTTPMethod": "POST",
-          "WFURL": "https://iphoneadvanced.com/api/v1/run/snap-calories",
-          "WFHTTPBodyType": "JSON",
-          "CustomOutputName": "response"
+          "WFURL": "https://iphoneadvanced.com/api/v1/run/snap-calories"
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.detect.dictionary",
         "WFWorkflowActionParameters": {
+          "CustomOutputName": "reply",
+          "UUID": "1780c886-352d-539f-a340-b23f67b5ce24",
           "WFInput": {
             "Value": {
+              "OutputName": "response",
               "OutputUUID": "5cb2efc5-ac48-58f9-90de-7f7a35e688c2",
-              "Type": "ActionOutput",
-              "OutputName": "response"
+              "Type": "ActionOutput"
             },
             "WFSerializationType": "WFTextTokenAttachment"
-          },
-          "CustomOutputName": "reply",
-          "UUID": "1780c886-352d-539f-a340-b23f67b5ce24"
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
         "WFWorkflowActionParameters": {
-          "WFInput": {
-            "Value": {
-              "OutputUUID": "1780c886-352d-539f-a340-b23f67b5ce24",
-              "Type": "ActionOutput",
-              "OutputName": "reply"
-            },
-            "WFSerializationType": "WFTextTokenAttachment"
-          },
           "CustomOutputName": "result",
           "UUID": "1b0f6c76-4354-52c7-8b31-3cede43b613d",
+          "WFDictionaryKey": "text",
           "WFGetDictionaryValueType": "Value",
-          "WFDictionaryKey": "text"
+          "WFInput": {
+            "Value": {
+              "OutputName": "reply",
+              "OutputUUID": "1780c886-352d-539f-a340-b23f67b5ce24",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
+          "GroupingIdentifier": "55d45407-85fc-574c-947d-ef05e77d7a70",
+          "WFCondition": 101,
+          "WFControlFlowMode": 0,
           "WFInput": {
             "Type": "Variable",
             "Variable": {
               "Value": {
+                "OutputName": "result",
                 "OutputUUID": "1b0f6c76-4354-52c7-8b31-3cede43b613d",
-                "Type": "ActionOutput",
-                "OutputName": "result"
+                "Type": "ActionOutput"
               },
               "WFSerializationType": "WFTextTokenAttachment"
             }
-          },
-          "WFControlFlowMode": 0,
-          "GroupingIdentifier": "4812636f-ec95-541f-adaf-21394d428b1c",
-          "WFCondition": 101
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
         "WFWorkflowActionParameters": {
-          "WFInput": {
-            "Value": {
-              "OutputUUID": "1780c886-352d-539f-a340-b23f67b5ce24",
-              "Type": "ActionOutput",
-              "OutputName": "reply"
-            },
-            "WFSerializationType": "WFTextTokenAttachment"
-          },
           "CustomOutputName": "problem",
           "UUID": "86c0b30c-9cd6-5285-bd98-464228357a35",
+          "WFDictionaryKey": "error",
           "WFGetDictionaryValueType": "Value",
-          "WFDictionaryKey": "error"
+          "WFInput": {
+            "Value": {
+              "OutputName": "reply",
+              "OutputUUID": "1780c886-352d-539f-a340-b23f67b5ce24",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
         "WFWorkflowActionParameters": {
+          "CustomOutputName": "link",
+          "UUID": "befd4091-feed-5dca-bc0d-83519a06c802",
+          "WFDictionaryKey": "action_url",
+          "WFGetDictionaryValueType": "Value",
           "WFInput": {
             "Value": {
+              "OutputName": "reply",
               "OutputUUID": "1780c886-352d-539f-a340-b23f67b5ce24",
-              "Type": "ActionOutput",
-              "OutputName": "reply"
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "badKey",
+          "UUID": "5fe6ee53-fbaf-5beb-b34f-b4273c8b16db",
+          "WFDictionaryKey": "key_invalid",
+          "WFGetDictionaryValueType": "Value",
+          "WFInput": {
+            "Value": {
+              "OutputName": "reply",
+              "OutputUUID": "1780c886-352d-539f-a340-b23f67b5ce24",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+          "GroupingIdentifier": "004c4609-a865-52b3-b921-3d5686a98b2b",
+          "WFCondition": 100,
+          "WFControlFlowMode": 0,
+          "WFInput": {
+            "Type": "Variable",
+            "Variable": {
+              "Value": {
+                "OutputName": "badKey",
+                "OutputUUID": "5fe6ee53-fbaf-5beb-b34f-b4273c8b16db",
+                "Type": "ActionOutput"
+              },
+              "WFSerializationType": "WFTextTokenAttachment"
+            }
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "Text 4",
+          "UUID": "5dfb1da1-49b9-5918-8f28-7ae06c1a3e6e",
+          "WFTextActionText": "reset"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
+        "WFWorkflowActionParameters": {
+          "WFInput": {
+            "Value": {
+              "OutputName": "Text 4",
+              "OutputUUID": "5dfb1da1-49b9-5918-8f28-7ae06c1a3e6e",
+              "Type": "ActionOutput"
             },
             "WFSerializationType": "WFTextTokenAttachment"
           },
-          "CustomOutputName": "link",
-          "UUID": "befd4091-feed-5dca-bc0d-83519a06c802",
-          "WFGetDictionaryValueType": "Value",
-          "WFDictionaryKey": "action_url"
+          "WFSerializationType": "WFTextTokenAttachment",
+          "WFVariableName": "cleared"
         }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.documentpicker.save",
+        "WFWorkflowActionParameters": {
+          "WFAskWhereToSave": false,
+          "WFFileDestinationPath": "advanced-automations-key.txt",
+          "WFInput": {
+            "Value": {
+              "Type": "Variable",
+              "VariableName": "cleared"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          },
+          "WFSaveFileOverwrite": true
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.nothing"
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+          "GroupingIdentifier": "004c4609-a865-52b3-b921-3d5686a98b2b",
+          "UUID": "4812636f-ec95-541f-adaf-21394d428b1c",
+          "WFControlFlowMode": 2
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.nothing"
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.alert",
@@ -341,14 +710,14 @@
           "WFAlertActionCancelButtonShown": true,
           "WFAlertActionMessage": {
             "Value": {
-              "string": "￼",
               "attachmentsByRange": {
                 "{0, 1}": {
+                  "OutputName": "problem",
                   "OutputUUID": "86c0b30c-9cd6-5285-bd98-464228357a35",
-                  "Type": "ActionOutput",
-                  "OutputName": "problem"
+                  "Type": "ActionOutput"
                 }
-              }
+              },
+              "string": "￼"
             },
             "WFSerializationType": "WFTextTokenString"
           },
@@ -361,14 +730,14 @@
           "Show-WFInput": true,
           "WFInput": {
             "Value": {
-              "string": "￼",
               "attachmentsByRange": {
                 "{0, 1}": {
+                  "OutputName": "link",
                   "OutputUUID": "befd4091-feed-5dca-bc0d-83519a06c802",
-                  "Type": "ActionOutput",
-                  "OutputName": "link"
+                  "Type": "ActionOutput"
                 }
-              }
+              },
+              "string": "￼"
             },
             "WFSerializationType": "WFTextTokenString"
           }
@@ -383,9 +752,9 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
-          "WFControlFlowMode": 2,
-          "GroupingIdentifier": "4812636f-ec95-541f-adaf-21394d428b1c",
-          "UUID": "4812636f-ec95-541f-adaf-21394d428b1c"
+          "GroupingIdentifier": "55d45407-85fc-574c-947d-ef05e77d7a70",
+          "UUID": "4812636f-ec95-541f-adaf-21394d428b1c",
+          "WFControlFlowMode": 2
         }
       },
       {
@@ -394,101 +763,101 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.detect.dictionary",
         "WFWorkflowActionParameters": {
+          "CustomOutputName": "meal",
+          "UUID": "feda3f3a-06a3-551f-ae77-6b7812120671",
           "WFInput": {
             "Value": {
+              "OutputName": "result",
               "OutputUUID": "1b0f6c76-4354-52c7-8b31-3cede43b613d",
-              "Type": "ActionOutput",
-              "OutputName": "result"
+              "Type": "ActionOutput"
             },
             "WFSerializationType": "WFTextTokenAttachment"
-          },
-          "CustomOutputName": "meal",
-          "UUID": "feda3f3a-06a3-551f-ae77-6b7812120671"
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
         "WFWorkflowActionParameters": {
-          "WFInput": {
-            "Value": {
-              "OutputUUID": "feda3f3a-06a3-551f-ae77-6b7812120671",
-              "Type": "ActionOutput",
-              "OutputName": "meal"
-            },
-            "WFSerializationType": "WFTextTokenAttachment"
-          },
           "CustomOutputName": "name",
           "UUID": "1cafe59d-0e6d-50cc-97c9-74f5ec361bd2",
+          "WFDictionaryKey": "meal",
           "WFGetDictionaryValueType": "Value",
-          "WFDictionaryKey": "meal"
+          "WFInput": {
+            "Value": {
+              "OutputName": "meal",
+              "OutputUUID": "feda3f3a-06a3-551f-ae77-6b7812120671",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
         "WFWorkflowActionParameters": {
-          "WFInput": {
-            "Value": {
-              "OutputUUID": "feda3f3a-06a3-551f-ae77-6b7812120671",
-              "Type": "ActionOutput",
-              "OutputName": "meal"
-            },
-            "WFSerializationType": "WFTextTokenAttachment"
-          },
           "CustomOutputName": "kcal",
           "UUID": "7a1c46bf-75a0-5b4b-8a41-93add48fe6a8",
+          "WFDictionaryKey": "calories",
           "WFGetDictionaryValueType": "Value",
-          "WFDictionaryKey": "calories"
+          "WFInput": {
+            "Value": {
+              "OutputName": "meal",
+              "OutputUUID": "feda3f3a-06a3-551f-ae77-6b7812120671",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
         "WFWorkflowActionParameters": {
-          "WFInput": {
-            "Value": {
-              "OutputUUID": "feda3f3a-06a3-551f-ae77-6b7812120671",
-              "Type": "ActionOutput",
-              "OutputName": "meal"
-            },
-            "WFSerializationType": "WFTextTokenAttachment"
-          },
           "CustomOutputName": "protein",
           "UUID": "9daee136-0074-53e1-b3cc-3eb274048682",
+          "WFDictionaryKey": "protein",
           "WFGetDictionaryValueType": "Value",
-          "WFDictionaryKey": "protein"
+          "WFInput": {
+            "Value": {
+              "OutputName": "meal",
+              "OutputUUID": "feda3f3a-06a3-551f-ae77-6b7812120671",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
         "WFWorkflowActionParameters": {
-          "WFInput": {
-            "Value": {
-              "OutputUUID": "feda3f3a-06a3-551f-ae77-6b7812120671",
-              "Type": "ActionOutput",
-              "OutputName": "meal"
-            },
-            "WFSerializationType": "WFTextTokenAttachment"
-          },
           "CustomOutputName": "carbs",
           "UUID": "997902ec-adfc-5d66-bfb3-43369aaa56d2",
+          "WFDictionaryKey": "carbs",
           "WFGetDictionaryValueType": "Value",
-          "WFDictionaryKey": "carbs"
+          "WFInput": {
+            "Value": {
+              "OutputName": "meal",
+              "OutputUUID": "feda3f3a-06a3-551f-ae77-6b7812120671",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          }
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
         "WFWorkflowActionParameters": {
-          "WFInput": {
-            "Value": {
-              "OutputUUID": "feda3f3a-06a3-551f-ae77-6b7812120671",
-              "Type": "ActionOutput",
-              "OutputName": "meal"
-            },
-            "WFSerializationType": "WFTextTokenAttachment"
-          },
           "CustomOutputName": "fat",
           "UUID": "0a7f8403-efba-51a7-a062-5ce18a9710ff",
+          "WFDictionaryKey": "fat",
           "WFGetDictionaryValueType": "Value",
-          "WFDictionaryKey": "fat"
+          "WFInput": {
+            "Value": {
+              "OutputName": "meal",
+              "OutputUUID": "feda3f3a-06a3-551f-ae77-6b7812120671",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          }
         }
       },
       {
@@ -497,34 +866,34 @@
           "WFAlertActionCancelButtonShown": true,
           "WFAlertActionMessage": {
             "Value": {
-              "string": "Estimated ￼:\n￼ kcal\n￼ g protein · ￼ g carbs · ￼ g fat\n\nPhoto estimates can be inaccurate and are not medical advice. Tap OK only if you want to save these estimates to Apple Health. Tap Cancel to save nothing.",
               "attachmentsByRange": {
-                "{13, 1}": {
-                  "OutputUUID": "7a1c46bf-75a0-5b4b-8a41-93add48fe6a8",
-                  "Type": "ActionOutput",
-                  "OutputName": "kcal"
-                },
                 "{10, 1}": {
+                  "OutputName": "name",
                   "OutputUUID": "1cafe59d-0e6d-50cc-97c9-74f5ec361bd2",
-                  "Type": "ActionOutput",
-                  "OutputName": "name"
+                  "Type": "ActionOutput"
                 },
-                "{34, 1}": {
-                  "OutputUUID": "997902ec-adfc-5d66-bfb3-43369aaa56d2",
-                  "Type": "ActionOutput",
-                  "OutputName": "carbs"
+                "{13, 1}": {
+                  "OutputName": "kcal",
+                  "OutputUUID": "7a1c46bf-75a0-5b4b-8a41-93add48fe6a8",
+                  "Type": "ActionOutput"
                 },
                 "{20, 1}": {
+                  "OutputName": "protein",
                   "OutputUUID": "9daee136-0074-53e1-b3cc-3eb274048682",
-                  "Type": "ActionOutput",
-                  "OutputName": "protein"
+                  "Type": "ActionOutput"
+                },
+                "{34, 1}": {
+                  "OutputName": "carbs",
+                  "OutputUUID": "997902ec-adfc-5d66-bfb3-43369aaa56d2",
+                  "Type": "ActionOutput"
                 },
                 "{46, 1}": {
+                  "OutputName": "fat",
                   "OutputUUID": "0a7f8403-efba-51a7-a062-5ce18a9710ff",
-                  "Type": "ActionOutput",
-                  "OutputName": "fat"
+                  "Type": "ActionOutput"
                 }
-              }
+              },
+              "string": "Estimated ￼:\n￼ kcal\n￼ g protein · ￼ g carbs · ￼ g fat\n\nPhoto estimates can be inaccurate and are not medical advice. Tap OK only if you want to save these estimates to Apple Health. Tap Cancel to save nothing."
             },
             "WFSerializationType": "WFTextTokenString"
           },
@@ -534,81 +903,81 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.health.quantity.log",
         "WFWorkflowActionParameters": {
-          "WFQuantitySampleType": "Dietary Energy",
           "WFQuantitySampleQuantity": {
             "Value": {
-              "Unit": "kcal",
               "Magnitude": {
                 "Value": {
+                  "OutputName": "kcal",
                   "OutputUUID": "7a1c46bf-75a0-5b4b-8a41-93add48fe6a8",
-                  "Type": "ActionOutput",
-                  "OutputName": "kcal"
+                  "Type": "ActionOutput"
                 },
                 "WFSerializationType": "WFTextTokenAttachment"
-              }
+              },
+              "Unit": "kcal"
             },
             "WFSerializationType": "WFQuantityFieldValue"
-          }
+          },
+          "WFQuantitySampleType": "Dietary Energy"
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.health.quantity.log",
         "WFWorkflowActionParameters": {
-          "WFQuantitySampleType": "Protein",
           "WFQuantitySampleQuantity": {
             "Value": {
-              "Unit": "g",
               "Magnitude": {
                 "Value": {
+                  "OutputName": "protein",
                   "OutputUUID": "9daee136-0074-53e1-b3cc-3eb274048682",
-                  "Type": "ActionOutput",
-                  "OutputName": "protein"
+                  "Type": "ActionOutput"
                 },
                 "WFSerializationType": "WFTextTokenAttachment"
-              }
+              },
+              "Unit": "g"
             },
             "WFSerializationType": "WFQuantityFieldValue"
-          }
+          },
+          "WFQuantitySampleType": "Protein"
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.health.quantity.log",
         "WFWorkflowActionParameters": {
-          "WFQuantitySampleType": "Carbohydrates",
           "WFQuantitySampleQuantity": {
             "Value": {
-              "Unit": "g",
               "Magnitude": {
                 "Value": {
+                  "OutputName": "carbs",
                   "OutputUUID": "997902ec-adfc-5d66-bfb3-43369aaa56d2",
-                  "Type": "ActionOutput",
-                  "OutputName": "carbs"
+                  "Type": "ActionOutput"
                 },
                 "WFSerializationType": "WFTextTokenAttachment"
-              }
+              },
+              "Unit": "g"
             },
             "WFSerializationType": "WFQuantityFieldValue"
-          }
+          },
+          "WFQuantitySampleType": "Carbohydrates"
         }
       },
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.health.quantity.log",
         "WFWorkflowActionParameters": {
-          "WFQuantitySampleType": "Total Fat",
           "WFQuantitySampleQuantity": {
             "Value": {
-              "Unit": "g",
               "Magnitude": {
                 "Value": {
+                  "OutputName": "fat",
                   "OutputUUID": "0a7f8403-efba-51a7-a062-5ce18a9710ff",
-                  "Type": "ActionOutput",
-                  "OutputName": "fat"
+                  "Type": "ActionOutput"
                 },
                 "WFSerializationType": "WFTextTokenAttachment"
-              }
+              },
+              "Unit": "g"
             },
             "WFSerializationType": "WFQuantityFieldValue"
-          }
+          },
+          "WFQuantitySampleType": "Total Fat"
         }
       },
       {
@@ -616,64 +985,66 @@
         "WFWorkflowActionParameters": {
           "WFNotificationActionBody": {
             "Value": {
-              "string": "￼ kcal · ￼ g protein · ￼ g carbs · ￼ g fat",
               "attachmentsByRange": {
-                "{9, 1}": {
-                  "OutputUUID": "9daee136-0074-53e1-b3cc-3eb274048682",
-                  "Type": "ActionOutput",
-                  "OutputName": "protein"
+                "{0, 1}": {
+                  "OutputName": "kcal",
+                  "OutputUUID": "7a1c46bf-75a0-5b4b-8a41-93add48fe6a8",
+                  "Type": "ActionOutput"
                 },
                 "{23, 1}": {
+                  "OutputName": "carbs",
                   "OutputUUID": "997902ec-adfc-5d66-bfb3-43369aaa56d2",
-                  "Type": "ActionOutput",
-                  "OutputName": "carbs"
+                  "Type": "ActionOutput"
                 },
                 "{35, 1}": {
+                  "OutputName": "fat",
                   "OutputUUID": "0a7f8403-efba-51a7-a062-5ce18a9710ff",
-                  "Type": "ActionOutput",
-                  "OutputName": "fat"
+                  "Type": "ActionOutput"
                 },
-                "{0, 1}": {
-                  "OutputUUID": "7a1c46bf-75a0-5b4b-8a41-93add48fe6a8",
-                  "Type": "ActionOutput",
-                  "OutputName": "kcal"
+                "{9, 1}": {
+                  "OutputName": "protein",
+                  "OutputUUID": "9daee136-0074-53e1-b3cc-3eb274048682",
+                  "Type": "ActionOutput"
                 }
-              }
+              },
+              "string": "￼ kcal · ￼ g protein · ￼ g carbs · ￼ g fat"
             },
             "WFSerializationType": "WFTextTokenString"
           },
           "WFNotificationActionTitle": {
             "Value": {
-              "string": "Saved estimate: ￼",
               "attachmentsByRange": {
                 "{16, 1}": {
+                  "OutputName": "name",
                   "OutputUUID": "1cafe59d-0e6d-50cc-97c9-74f5ec361bd2",
-                  "Type": "ActionOutput",
-                  "OutputName": "name"
+                  "Type": "ActionOutput"
                 }
-              }
+              },
+              "string": "Saved estimate: ￼"
             },
             "WFSerializationType": "WFTextTokenString"
           }
         }
       }
     ],
+    "WFWorkflowClientVersion": "5037.0.17",
+    "WFWorkflowHasOutputFallback": false,
+    "WFWorkflowHasShortcutInputVariables": true,
+    "WFWorkflowIcon": {
+      "WFWorkflowIconGlyphNumber": 59740,
+      "WFWorkflowIconStartColor": 4292093695
+    },
+    "WFWorkflowImportQuestions": [],
     "WFWorkflowInputContentItemClasses": [
       "WFImageContentItem"
     ],
-    "WFWorkflowImportQuestions": [
-      {
-        "Category": "Parameter",
-        "ParameterKey": "WFInput",
-        "ActionIndex": 11,
-        "Text": "Paste your Advanced Automations key. We copied it for you when you tapped Add to Shortcuts.",
-        "DefaultValue": ""
-      }
-    ],
-    "WFQuickActionSurfaces": [],
+    "WFWorkflowMinimumClientVersion": 900,
+    "WFWorkflowMinimumClientVersionString": "900",
+    "WFWorkflowNoInputBehavior": {},
+    "WFWorkflowOutputContentItemClasses": [],
+    "WFWorkflowTriggers": [],
     "WFWorkflowTypes": [
       "ActionExtension"
-    ],
-    "WFWorkflowHasShortcutInputVariables": true
+    ]
   }
 }

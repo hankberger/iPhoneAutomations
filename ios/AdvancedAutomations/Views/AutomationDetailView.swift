@@ -149,7 +149,7 @@ private struct NativeActionSection: View {
 }
 
 // Installs a shortcut the way the site's install page does: a fresh key on the clipboard, then
-// its iCloud link, where Shortcuts asks for the key. Shortcuts without an iCloud link can only
+// its iCloud link. The shortcut asks for the key on its first run. Shortcuts without an iCloud link can only
 // be imported from a downloaded file, which Safari hands over, so those go to the install page.
 private struct GetButton: View {
     var automation: Automation
@@ -175,8 +175,8 @@ private struct GetButton: View {
             .disabled(working)
 
             Text(status ?? (automation.icloudUrl == nil
-                ? "Copies a key, then opens the shortcut file in Safari. Paste the key when importing into Shortcuts."
-                : "Copies a key for this shortcut and opens Shortcuts. Paste it when asked, then tap Add Shortcut."))
+                ? "Copies a key, then opens the shortcut file in Safari. Paste the key the first time you run it."
+                : "Copies a key and opens Shortcuts. Tap Add Shortcut, then paste the key the first time you run it."))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -196,9 +196,9 @@ private struct GetButton: View {
         defer { working = false }
         do {
             let key = try await API.shared.makeKey(named: automation.name)
-            // Kept off other devices and cleared after a few minutes.
-            UIPasteboard.general.setItems([[UTType.plainText.identifier: key]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(300)])
-            status = "Key copied. Paste it when Shortcuts asks."
+            // Kept off other devices, and kept long enough to reach the shortcut's first run.
+            UIPasteboard.general.setItems([[UTType.plainText.identifier: key]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(3600)])
+            status = "Key copied. Paste it when the shortcut first asks."
             // A cached catalog may still contain the old meal shortcut's iCloud
             // link. Always download its current, review-before-Health version.
             openURL(automation.slug == "snap-calories" ? API.page("download/\(automation.slug)") : automation.icloudUrl ?? API.page("download/\(automation.slug)"))
