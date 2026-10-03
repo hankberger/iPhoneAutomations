@@ -45,7 +45,7 @@ export const terms = ({ user, appMode = false }) => page({
   <li>Each AI request is charged against your balance at the <a href="#rates">rates below</a>. Those rates include our margin over what our AI providers charge us, and we may change them. New rates apply to requests made after the change, never to credit already spent.</li>
   <li>Credit does not expire. It has no cash value, cannot be transferred, and is not a deposit account.</li>
   <li>Apple handles App Store refund requests through <a href="https://reportaproblem.apple.com">Report a Problem</a>. For web-payment issues, email ${mail}. Applicable consumer rights are unaffected. If a purchase is refunded or revoked, we remove its credit up to the available balance; a reversed refund restores only the amount previously removed.</li>
-  <li>Promotional credit, such as a sign-up bonus, may be withdrawn if it is abused (for example, by creating many accounts).</li>
+  <li>Promotional credit may be withdrawn if it is abused (for example, by creating many accounts).</li>
 </ul>
 <h3 id="rates">Rates</h3>
 <p>Per million tokens, in US dollars.</p>
