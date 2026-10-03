@@ -38,7 +38,12 @@ async function boot() {
     return res;
   };
   const form = (path, data) => req(path, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(data).toString() });
-  return { db, ai, req, form };
+  const allowAI = async () => {
+    const html = await (await req('/account/ai-privacy')).text();
+    const csrf = html.match(/name="csrf" value="([^"]+)"/)[1];
+    assert.equal((await form('/account/ai-privacy', { csrf, version: '1', allowed: 'true' })).status, 303);
+  };
+  return { db, ai, req, form, allowAI };
 }
 
 test('plain http redirects to https', async () => {
@@ -53,9 +58,13 @@ test('plain http redirects to https', async () => {
 
 test('pages render', async () => {
   const { req } = await boot();
-  for (const p of ['/', '/automations', '/automations/reply-drafter', '/automations/tone-shifter', '/pricing', '/terms', '/privacy', '/login', '/signup']) {
+  for (const p of ['/', '/automations', '/automations/reply-drafter', '/automations/tone-shifter', '/pricing', '/terms', '/privacy', '/support', '/login', '/signup']) {
     assert.equal((await req(p)).status, 200, p);
   }
+  const search = await (await req('/automations?q=meeting')).text();
+  assert.match(search, /Summarize My Meeting Notes/);
+  assert.match(search, /1 result for/);
+  assert.doesNotMatch(search, /Log My Meal/);
   assert.equal((await req('/automations/nope')).status, 404);
   assert.match((await req('/')).headers.get('content-security-policy'), /frame-ancestors 'none'/);
   assert.equal((await req('/webhooks/stripe', { method: 'POST', body: '{}' })).status, 400, 'webhook refuses without config');
@@ -67,8 +76,9 @@ test('pages render', async () => {
 });
 
 test('installed shortcuts: install page key, friendly errors, prompts from the catalog', async () => {
-  const { db, ai, req, form } = await boot();
+  const { db, ai, req, form, allowAI } = await boot();
   await form('/signup', { email: 'p@b.co', password: 'correct horse battery' });
+  await allowAI();
   const html = await (await req('/automations/tone-shifter/install')).text();
   const key = html.match(/data-key="(aa_live_[\w-]+)"/)[1];
   assert.match(await (await req('/account')).text(), /Change the Tone/, 'key is named after the shortcut');
@@ -112,10 +122,11 @@ test('installed shortcuts: install page key, friendly errors, prompts from the c
 });
 
 test('signup, login, csrf, keys and metered Cloudflare proxy', async () => {
-  const { db, ai, req, form } = await boot();
+  const { db, ai, req, form, allowAI } = await boot();
   assert.equal((await form('/signup', { email: 'a@b.co', password: 'short' })).status, 400);
   assert.equal((await form('/signup', { email: 'A@b.co', password: 'correct horse battery' })).status, 303);
   assert.equal((await form('/signup', { email: 'a@b.co', password: 'correct horse battery' })).status, 409);
+  await allowAI();
 
   let html = await (await req('/account')).text();
   assert.match(html, /a@b\.co/);
@@ -183,18 +194,27 @@ test('signup, login, csrf, keys and metered Cloudflare proxy', async () => {
 });
 
 test('photo, JSON and audio shortcuts', async () => {
-  const { db, ai, req, form } = await boot();
+  const { db, ai, req, form, allowAI } = await boot();
   await form('/signup', { email: 'p@b.co', password: 'correct horse battery' });
+  await allowAI();
   const key = (await (await req('/automations/snap-calories/install')).text()).match(/data-key="(aa_live_[\w-]+)"/)[1];
   const billing = createBilling(db, { stripeKey: '' });
   await billing.fulfillCheckout({ id: 'cs_test_3', payment_status: 'paid', metadata: { user_id: '1', credit_micros: '1000000' } });
   const auth = { authorization: `Bearer ${key}` };
-  const run = (slug, body) => req(`/api/v1/run/${slug}`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const run = (slug, body) => req(`/api/v1/run/${slug}`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ recipe_version: 2, ...body }) });
 
   // Shortcuts' Base64 Encode wraps lines; the photo goes up as a data URL and isn't held to the
   // text size limit. The JSON answer comes back clean, without false or empty keys.
   ai.response = 'Sure! {"meal": "Pad thai", "calories": 650, "protein": 24, "carbs": 80, "fat": 22, "note": ""} Enjoy.';
   const photo = `/9j/${'A'.repeat(76)}\n${'B'.repeat(300_000)}`;
+  for (const version of [undefined, 1, '2']) {
+    const outdated = await run('snap-calories', { image: photo, recipe_version: version });
+    assert.equal(outdated.status, 426);
+    const failure = await outdated.json();
+    assert.equal(failure.text, undefined);
+    assert.equal(failure.action_url, 'http://localhost/automations/snap-calories/install');
+  }
+  assert.equal(ai.calls.length, 0, 'obsolete shortcuts must not spend inference credit');
   let res = await run('snap-calories', { input: 'Photo of a meal', image: photo });
   assert.equal(res.status, 200);
   assert.deepEqual(JSON.parse((await res.json()).text), { meal: 'Pad thai', calories: 650, protein: 24, carbs: 80, fat: 22 });
@@ -206,7 +226,22 @@ test('photo, JSON and audio shortcuts', async () => {
   ai.response = 'I don’t see any food.';
   res = await run('snap-calories', { input: 'x', image: photo });
   assert.equal(res.status, 422);
-  assert.match((await res.json()).error, /Couldn’t spot any food/);
+  const failedMeal = await res.json();
+  assert.match(failedMeal.error, /complete nutrition estimate/);
+  assert.equal(failedMeal.text, undefined, 'rejected output must stop the shortcut');
+  for (const invalid of [
+    {}, { meal: 'Soup' }, { meal: 'Soup', calories: '100', protein: 5, carbs: 8, fat: 6 },
+    { meal: 'Soup', calories: -1, protein: 5, carbs: 8, fat: 6 },
+    { meal: 'Soup', calories: 1e30, protein: 5, carbs: 8, fat: 6 },
+    { meal: 'Soup', calories: 100, protein: null, carbs: 8, fat: 6 },
+    { meal: '', calories: 100, protein: 5, carbs: 8, fat: 6 },
+    { meal: 'Soup', calories: 100, protein: 5, carbs: 8.5, fat: 6 },
+  ]) {
+    ai.response = JSON.stringify(invalid);
+    const bad = await run('snap-calories', { input: 'Meal', image: photo });
+    assert.equal(bad.status, 422);
+    assert.equal((await bad.json()).text, undefined);
+  }
 
   // Summarize My Meeting Notes posts the recording itself: Whisper transcribes, Llama writes the notes, and
   // both are billed (2 minutes x $0.00051 x 1.5 = $0.00153, plus the notes).
@@ -225,8 +260,9 @@ test('photo, JSON and audio shortcuts', async () => {
 });
 
 test('building blocks take the person’s own instructions', async () => {
-  const { db, ai, req, form } = await boot();
+  const { db, ai, req, form, allowAI } = await boot();
   await form('/signup', { email: 'k@b.co', password: 'correct horse battery' });
+  await allowAI();
   const key = (await (await req('/automations/ask-ai/install')).text()).match(/data-key="(aa_live_[\w-]+)"/)[1];
   const billing = createBilling(db, { stripeKey: '' });
   await billing.fulfillCheckout({ id: 'cs_test_4', payment_status: 'paid', metadata: { user_id: '1', credit_micros: '1000000' } });
@@ -311,8 +347,9 @@ test('install page downloads the signed file under the shortcut’s name, or ope
   assert.match(res.headers.get('content-disposition'), /^attachment; filename="reply-drafter\.shortcut"; filename\*=UTF-8''Draft%20a%20Reply\.shortcut$/);
   assert.equal((await app.fetch(new Request('http://localhost/download/nope'), env)).status, 404);
 
-  const { req, form } = await boot();
+  const { req, form, allowAI } = await boot();
   await form('/signup', { email: 'd@b.co', password: 'correct horse battery' });
+  await allowAI();
   let html = await (await req('/automations/explain-this/install')).text();
   assert.match(html, /id="add" href="http:\/\/localhost\/download\/explain-this"/);
   assert.doesNotMatch(html, /import-shortcut/, 'iOS rejects import-shortcut for anything but iCloud links');
@@ -331,7 +368,7 @@ test('terms and privacy are linked from every page footer and the signup form', 
 });
 
 test('iPhone app: catalog, connect handoff and install keys', async () => {
-  const { req, form } = await boot();
+  const { req, form, allowAI } = await boot();
   let res = await req('/api/v1/catalog');
   const catalog = await res.json();
   assert.equal(res.status, 200);
@@ -347,6 +384,7 @@ test('iPhone app: catalog, connect handoff and install keys', async () => {
   assert.equal(res.headers.get('location'), `/login?next=${encodeURIComponent(`/app/connect?state=${state}`)}`);
 
   await form('/signup', { email: 'app@b.co', password: 'correct horse battery' });
+  await allowAI();
   assert.equal((await req('/app/connect?state=short')).status, 404);
   res = await req(`/app/connect?state=${state}`);
   // The page holding the form must allow the app scheme, or the browser blocks the redirect.

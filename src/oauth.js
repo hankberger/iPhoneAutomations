@@ -94,5 +94,6 @@ export async function finishFlow(provider, { code, redirectUri, flow }) {
     email: claims.email ? String(claims.email).trim().toLowerCase() : null,
     // Google sends a boolean, Apple sometimes the string "true".
     emailVerified: claims.email_verified === true || claims.email_verified === 'true',
+    revocationToken: provider.name === 'Apple' ? json.refresh_token || json.access_token : undefined,
   };
 }

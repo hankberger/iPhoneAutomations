@@ -34,7 +34,7 @@ export const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="current
 // Grid spark mark; same drawing as public/favicon.svg.
 const LOGO = '<svg class="mark" aria-hidden="true" viewBox="0 0 32 32"><rect x="1" y="1" width="13.5" height="13.5" rx="4" fill="#ff6b3d"/><path d="M24.75 .5c.8 4.9 2.35 6.45 7.25 7.25-4.9.8-6.45 2.35-7.25 7.25-.8-4.9-2.35-6.45-7.25-7.25 4.9-.8 6.45-2.35 7.25-7.25z" fill="#7c5cff"/><rect x="1" y="17.5" width="13.5" height="13.5" rx="4" fill="#10b981"/><rect x="17.5" y="17.5" width="13.5" height="13.5" rx="4" fill="#0ea5e9"/></svg>';
 
-export function layout({ title, user, body, active = '' }) {
+export function layout({ title, user, body, active = '', stylesheet = '', appMode = false }) {
   const nav = (href, label) => `<a href="${href}"${active === href ? ' aria-current="page"' : ''}>${label}</a>`;
   return `<!doctype html>
 <html lang="en">
@@ -57,23 +57,25 @@ export function layout({ title, user, body, active = '' }) {
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/styles.css">
+${stylesheet ? `<link rel="stylesheet" href="${e(stylesheet)}">` : ''}
 </head>
 <body>
 <header class="site-header">
   <div class="wrap row">
-    <a class="brand" href="/">${LOGO}<span>Advanced Automations</span></a>
-    <nav class="nav">
+    <a class="brand" href="${appMode ? '/app/privacy' : '/'}">${LOGO}<span>Advanced Automations</span></a>
+    ${appMode ? '' : `<nav class="nav">
       ${nav('/automations', 'Blocks')}
       ${nav('/pricing', 'Pricing')}
+      ${user?.is_admin ? nav('/admin', 'Analytics') : ''}
       ${user ? `<a class="btn btn-sm" href="/account">Account</a>` : `<a class="btn btn-sm" href="/login">Log in</a>`}
-    </nav>
+    </nav>`}
   </div>
 </header>
 <main>${body}</main>
 <footer class="site-footer">
   <div class="wrap row">
-    <a class="brand small" href="/">${LOGO}<span>Advanced Automations</span></a>
-    <nav class="footer-links small"><a href="/pricing">Pricing</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a></nav>
+    <span class="brand small">${LOGO}<span>Advanced Automations</span></span>
+    <nav class="footer-links small">${appMode ? '<a href="/app/terms">Terms</a><a href="/app/privacy">Privacy</a>' : '<a href="/pricing">Pricing</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a>'}</nav>
     <span class="muted small">© ${new Date().getFullYear()} · iphoneadvanced.com</span>
   </div>
 </footer>
@@ -86,7 +88,7 @@ const card = (a) => `
     <span class="ic">${icon(a.icon)}</span>
     <h3>${e(a.name)}</h3>
     <p>${e(a.tagline)}</p>
-    <span class="meta"><span>${e(a.trigger)}</span><span class="get">Get</span></span>
+    <span class="meta"><span>${e(a.input || a.trigger)}${a.output ? ` → ${e(a.output)}` : ''}</span><span class="get">Get</span></span>
   </a>`;
 
 const tile = (a, extra = '') => `<a class="tile c-${a.color}${extra}" href="/automations/${a.slug}">${icon(a.icon)}<span>${e(a.name)}</span></a>`;
@@ -164,11 +166,28 @@ export function landing({ user }) {
   });
 }
 
-export function catalog({ user, category }) {
-  const chip = (c, label) => `<a class="chip" href="/automations${c ? `?category=${encodeURIComponent(c)}` : ''}"${(category || '') === c ? ' aria-current="true"' : ''}>${label}</a>`;
-  const grid = (list, extra = '') => `<div class="grid${extra}">${list.map(card).join('')}</div>`;
-  const body = category
-    ? `<section class="wrap">${grid(AUTOMATIONS.filter((a) => a.category === category))}</section>`
+export function catalog({ user, category, query = '' }) {
+  const normalized = query.trim().toLowerCase();
+  const list = AUTOMATIONS.filter((a) => {
+    if (category && a.category !== category) return false;
+    if (!normalized) return true;
+    return [a.name, a.tagline, a.category, a.trigger, a.input, a.output, ...(a.tags || [])]
+      .filter(Boolean).join(' ').toLowerCase().includes(normalized);
+  });
+  const href = (c = category, q = query) => {
+    const params = new URLSearchParams();
+    if (c) params.set('category', c);
+    if (q) params.set('q', q);
+    const suffix = params.toString();
+    return `/automations${suffix ? `?${suffix}` : ''}`;
+  };
+  const chip = (c, label) => `<a class="chip" href="${href(c)}"${(category || '') === c ? ' aria-current="true"' : ''}>${label}</a>`;
+  const grid = (items, extra = '') => `<div class="grid${extra}">${items.map(card).join('')}</div>`;
+  const body = category || normalized
+    ? `<section class="wrap">
+  ${normalized ? `<p class="small muted">${list.length} result${list.length === 1 ? '' : 's'} for “${e(query)}”</p>` : ''}
+  ${list.length ? grid(list) : '<p class="empty-state">Nothing matches that search. Try “photo”, “meeting”, “write” or “tasks”.</p>'}
+</section>`
     : `<section class="wrap">
   <h2 class="cat-h">Building blocks</h2>
   <p class="muted">Add them to your own shortcuts with Run Shortcut.</p>
@@ -187,6 +206,11 @@ export function catalog({ user, category }) {
 <section class="wrap page-head center">
   <h1>AI blocks for Shortcuts</h1>
   <p class="lede">Drop a block into any shortcut you build, or grab a ready-made one. You only pay for the AI each run uses.</p>
+  <form class="catalog-search" action="/automations" method="get" role="search">
+    ${category ? `<input type="hidden" name="category" value="${e(category)}">` : ''}
+    <input type="search" name="q" value="${e(query)}" placeholder="Search by task, input or outcome" aria-label="Search blocks and shortcuts">
+    <button class="btn btn-sm" type="submit">Search</button>
+  </form>
   <div class="chips">${chip('', 'All')}${CATEGORIES.map((c) => chip(c, c)).join('')}</div>
 </section>
 ${body}`,
@@ -282,6 +306,7 @@ export function install({ user, a, key, balance, fileUrl }) {
 
 export function appConnect({ user, state }) {
   return layout({
+    appMode: true,
     title: 'Connect the app',
     user,
     body: `
@@ -301,13 +326,14 @@ export function appConnect({ user, state }) {
   });
 }
 
-export function pricing({ user }) {
+export function pricing({ user, appMode = false }) {
   const rows = Object.entries(MODELS).map(([id, m]) => {
     const p = retailPrice(id);
     return `<tr><td><strong>${e(m.tier)}</strong></td><td class="num">$${p.input.toFixed(2)}</td><td class="num">$${p.output.toFixed(2)}</td></tr>`;
   }).join('');
   return layout({
     title: 'Pricing',
+    appMode,
     user,
     active: '/pricing',
     body: `
@@ -335,6 +361,8 @@ const PROVIDER_LOGOS = {
 };
 
 export function authPage({ mode, error, email = '', next = '', providers = [] }) {
+  const appMode = next.startsWith('/app/connect');
+  if (appMode && !providers.some(p => p.id === 'apple')) providers = [];
   const isLogin = mode === 'login';
   const getting = AUTOMATIONS.find((a) => next === `/automations/${a.slug}/install`);
   const nextQuery = next ? `?next=${encodeURIComponent(next)}` : '';
@@ -345,6 +373,7 @@ export function authPage({ mode, error, email = '', next = '', providers = [] })
     <p class="divider small muted"><span>or use email</span></p>` : '';
   return layout({
     title: isLogin ? 'Log in' : 'Create account',
+    appMode,
     active: isLogin ? '/login' : '',
     body: `
 <section class="wrap auth">
@@ -357,7 +386,7 @@ export function authPage({ mode, error, email = '', next = '', providers = [] })
     <label>Email<input name="email" type="email" autocomplete="email" required value="${e(email)}"></label>
     <label>Password<input name="password" type="password" autocomplete="${isLogin ? 'current-password' : 'new-password'}" minlength="10" required></label>
     <button class="btn btn-lg btn-block" type="submit">${isLogin ? 'Log in' : 'Create account'}</button>
-    ${isLogin ? '' : '<p class="small muted center">By creating an account you agree to our <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.</p>'}
+    ${isLogin ? '' : `<p class="small muted center">By creating an account you agree to our <a href="${appMode ? '/app' : ''}/terms">Terms</a> and <a href="${appMode ? '/app' : ''}/privacy">Privacy Policy</a>.</p>`}
     <p class="small muted center">${isLogin ? `New here? <a href="/signup${e(nextQuery)}">Create an account</a>` : `Have an account? <a href="/login${e(nextQuery)}">Log in</a>`}</p>
   </form>
 </section>`,
@@ -423,9 +452,13 @@ export function account({ user, keys, history, linked = [], newKey, notice, bill
     <h2>Activity</h2>
     <table class="table"><thead><tr><th>Date</th><th>Description</th><th class="num">Amount</th></tr></thead><tbody>${historyRows}</tbody></table>
   </div>
+  <div class="panel wide"><h2>Privacy and account</h2>
+    <a href="/account/ai-privacy">AI data-sharing permission</a> · <a href="/account/delete">Delete account</a>
+  </div>
 </section>`,
   });
 }
+
 
 export const notFound = ({ user }) => layout({
   title: 'Not found', user,

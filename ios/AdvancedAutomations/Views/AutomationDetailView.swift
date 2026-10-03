@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct AutomationDetailView: View {
     var automation: Automation
+    @EnvironmentObject private var catalog: CatalogStore
 
     var body: some View {
         ScrollView {
@@ -16,6 +17,19 @@ struct AutomationDetailView: View {
                     }
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
+
+                    if let input = automation.input, let output = automation.output {
+                        HStack(spacing: 6) {
+                            Label(input, systemImage: "arrow.down.to.line")
+                            Image(systemName: "arrow.right")
+                            Label(output, systemImage: "arrow.up.from.line")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.color(automation.color))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(Theme.color(automation.color).opacity(0.10), in: Capsule())
+                    }
                 }
 
                 if automation.isBlock {
@@ -25,8 +39,11 @@ struct AutomationDetailView: View {
                     Section(title: "How to run it") { Text(automation.runTip) }
                     steps
                 }
+
+                RelatedAutomationsSection(automation: automation)
             }
-            .padding(20)
+            .padding(.horizontal)
+            .padding(.vertical, 20)
             .frame(maxWidth: 640, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
@@ -60,6 +77,41 @@ struct AutomationDetailView: View {
     }
 }
 
+private struct RelatedAutomationsSection: View {
+    var automation: Automation
+    @EnvironmentObject private var catalog: CatalogStore
+
+    var body: some View {
+        let related = catalog.related(to: automation)
+        if !related.isEmpty {
+            Section(title: automation.isBlock ? "Good next steps" : "You might also like") {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(related) { item in
+                        NavigationLink(value: item) {
+                            HStack(spacing: 12) {
+                                IconTile(automation: item, size: 38)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.name).fontWeight(.semibold)
+                                    Text(item.output ?? item.tagline)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+}
+
 private struct Section<Content: View>: View {
     var title: String
     @ViewBuilder var content: Content
@@ -75,7 +127,6 @@ private struct Section<Content: View>: View {
 // Building blocks don't need installing: the app adds them to Shortcuts as native actions.
 private struct NativeActionSection: View {
     var automation: Automation
-    @EnvironmentObject private var session: Session
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -84,9 +135,6 @@ private struct NativeActionSection: View {
                 .font(.headline)
                 .foregroundStyle(Theme.color(automation.color))
             Text("In the Shortcuts app, tap + to make a shortcut, then search for “\(automation.name)”, or scroll to Advanced Automations under Apps. Drop it in like any other action and pass its result along.")
-            if !session.isSignedIn {
-                SignInCard(message: "Sign in once so the action can use your credit.")
-            }
             Button {
                 openURL(URL(string: "shortcuts://")!)
             } label: {
@@ -107,7 +155,6 @@ private struct GetButton: View {
     var automation: Automation
     @EnvironmentObject private var session: Session
     @Environment(\.openURL) private var openURL
-    @Environment(\.webAuthenticationSession) private var webAuth
     @State private var working = false
     @State private var status: String?
 
@@ -128,7 +175,7 @@ private struct GetButton: View {
             .disabled(working)
 
             Text(status ?? (automation.icloudUrl == nil
-                ? "Opens the install page on iphoneadvanced.com."
+                ? "Copies a key, then opens the shortcut file in Safari. Paste the key when importing into Shortcuts."
                 : "Copies a key for this shortcut and opens Shortcuts. Paste it when asked, then tap Add Shortcut."))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -137,19 +184,24 @@ private struct GetButton: View {
     }
 
     private func get() async {
-        guard let icloud = automation.icloudUrl else {
-            openURL(API.page("automations/\(automation.slug)/install"))
+        guard session.isSignedIn else {
+            status = "Open the Account tab and sign in to add this shortcut."
+            return
+        }
+        guard AIConsent.isAllowed else {
+            status = "Open Account → AI Privacy and review data sharing before adding AI shortcuts."
             return
         }
         working = true
         defer { working = false }
         do {
-            if !session.isSignedIn { try await session.connect(using: webAuth) }
             let key = try await API.shared.makeKey(named: automation.name)
             // Kept off other devices and cleared after a few minutes.
             UIPasteboard.general.setItems([[UTType.plainText.identifier: key]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(300)])
             status = "Key copied. Paste it when Shortcuts asks."
-            openURL(icloud)
+            // A cached catalog may still contain the old meal shortcut's iCloud
+            // link. Always download its current, review-before-Health version.
+            openURL(automation.slug == "snap-calories" ? API.page("download/\(automation.slug)") : automation.icloudUrl ?? API.page("download/\(automation.slug)"))
         } catch {
             status = error.localizedDescription
         }

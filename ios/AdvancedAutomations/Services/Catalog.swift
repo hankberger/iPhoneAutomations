@@ -24,9 +24,20 @@ struct Automation: Codable, Identifiable, Hashable {
     var typicalCost: Double
     var icloudUrl: URL?
     var block: Bool?
+    var tags: [String]?
+    var input: String?
+    var output: String?
+    var pairWith: [String]?
 
     var id: String { slug }
     var isBlock: Bool { block ?? false }
+
+    var searchableText: String {
+        [name, tagline, category, trigger, input, output, tags?.joined(separator: " ")]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .lowercased()
+    }
 
     // Same rounding as cents() in src/views.js.
     var typicalCostLabel: String {
@@ -59,6 +70,28 @@ final class CatalogStore: ObservableObject {
     func automations(in category: String?) -> [Automation] {
         guard let category else { return catalog.automations.filter { !$0.isBlock } }
         return catalog.automations.filter { $0.category == category }
+    }
+
+    func matching(_ text: String, in category: String? = nil, blocksOnly: Bool = false) -> [Automation] {
+        let query = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return catalog.automations.filter { automation in
+            (!blocksOnly || automation.isBlock) &&
+            (category == nil || automation.category == category) &&
+            (query.isEmpty || automation.searchableText.contains(query) || (automation.tags ?? []).contains { $0.lowercased().contains(query) })
+        }
+    }
+
+    func automation(slug: String) -> Automation? {
+        catalog.automations.first { $0.slug == slug }
+    }
+
+    func related(to automation: Automation) -> [Automation] {
+        (automation.pairWith ?? []).compactMap { self.automation(slug: $0) }
+    }
+
+    var featured: [Automation] {
+        let preferred = ["summarize-anything", "smart-reminders", "voice-to-notes", "explain-this"]
+        return preferred.compactMap { automation(slug: $0) }
     }
 
     var blocks: [Automation] { catalog.automations.filter(\.isBlock) }

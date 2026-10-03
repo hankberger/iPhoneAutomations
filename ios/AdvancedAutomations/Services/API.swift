@@ -42,6 +42,59 @@ final class API: Sendable {
         return try JSONDecoder().decode(Balance.self, from: data).balance_usd
     }
 
+    struct StoreConfiguration: Decodable {
+        struct CreditProduct: Decodable { var id: String; var credit_usd: Double }
+        var enabled: Bool
+        var app_account_token: UUID
+        var products: [CreditProduct]
+    }
+    func storeConfiguration() async throws -> StoreConfiguration {
+        try JSONDecoder().decode(StoreConfiguration.self, from: await send(request("api/v1/store", method: "GET")))
+    }
+    func deliverPurchase(_ signed: String) async throws {
+        _ = try await post("api/v1/store/purchase", ["signed_transaction": signed])
+    }
+    struct PrivacyChoice: Decodable { var allowed: Bool; var version: Int; var disclosure: String? }
+    func privacy() async throws -> PrivacyChoice {
+        try JSONDecoder().decode(PrivacyChoice.self, from: await send(request("api/v1/account/privacy", method: "GET")))
+    }
+    func setPrivacy(allowed: Bool) async throws {
+        _ = try await post("api/v1/account/privacy", ["allowed": allowed, "version": 1])
+    }
+    func deleteAccount() async throws {
+        _ = try await post("api/v1/account/delete", ["confirmation": "DELETE"])
+    }
+    struct Account: Decodable {
+        struct Key: Decodable, Identifiable { var id: Int; var name: String; var prefix: String }
+        struct Entry: Decodable, Identifiable {
+            var id: Int; var description: String; var amount_micros: Int; var created_at: Double
+        }
+        var email: String
+        var keys: [Key]
+        var history: [Entry]
+    }
+    func account() async throws -> Account {
+        try JSONDecoder().decode(Account.self, from: await send(request("api/v1/account", method: "GET")))
+    }
+    func revokeKey(_ id: Int) async throws -> Bool {
+        struct Result: Decodable { var signed_out: Bool }
+        return try JSONDecoder().decode(Result.self, from: await post("api/v1/account/keys/revoke", ["id": id])).signed_out
+    }
+    private func post(_ path: String, _ body: [String: Any]) async throws -> Data {
+        var req = try request(path)
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await send(req)
+    }
+
+    private func requireRemoteConsent() async throws {
+        try AIConsent.requirePermission()
+        let choice = try await privacy()
+        guard choice.allowed, choice.version == 1 else {
+            AIConsent.setAllowed(false)
+            throw APIError(message: "Review AI data sharing in Account → AI Privacy before running this action.")
+        }
+    }
+
     // A fresh key for a shortcut being installed; Shortcuts asks for it on import.
     func makeKey(named name: String) async throws -> String {
         struct Key: Decodable { var key: String }
@@ -59,6 +112,7 @@ final class API: Sendable {
     }
 
     func run(_ slug: String, _ body: [String: String]) async throws -> RunResult {
+        try await requireRemoteConsent()
         var req = try request("api/v1/run/\(slug)")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         return try JSONDecoder().decode(RunResult.self, from: try await send(req))
@@ -66,6 +120,7 @@ final class API: Sendable {
 
     // Audio blocks post the recording itself as the body.
     func run(_ slug: String, audio: Data) async throws -> RunResult {
+        try await requireRemoteConsent()
         var req = try request("api/v1/run/\(slug)")
         req.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         req.httpBody = audio

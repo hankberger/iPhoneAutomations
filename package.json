@@ -15,6 +15,7 @@
   },
   "license": "ISC",
   "dependencies": {
+    "@apple/app-store-server-library": "^3.1.0",
     "hono": "^4.13.9",
     "stripe": "^22.6.2"
   },

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { memoryD1 } from './d1.js';
 import app from '../src/worker.js';
 import { decodeJwt } from '../src/oauth.js';
+import { openToken } from '../src/privacy.js';
 
 const b64url = (s) => Buffer.from(s).toString('base64url');
 const idToken = (claims) => `${b64url(JSON.stringify({ alg: 'RS256' }))}.${b64url(JSON.stringify(claims))}.sig`;
@@ -23,7 +24,7 @@ function fakeProviders() {
   globalThis.fetch = async (url, init) => {
     const body = new URLSearchParams(init.body);
     calls.push({ url: String(url), body });
-    return Response.json({ id_token: idToken(state.claims) });
+    return Response.json({ id_token: idToken(state.claims), refresh_token: 'fake-apple-refresh-token' });
   };
   return { calls, state };
 }
@@ -32,6 +33,7 @@ async function boot(appUrl = 'http://localhost') {
   const db = memoryD1();
   const env = {
     DB: db, APP_URL: appUrl,
+    TOKEN_ENCRYPTION_KEY: 'ab'.repeat(32),
     GOOGLE_CLIENT_ID: 'g-client', GOOGLE_CLIENT_SECRET: 'g-secret',
     APPLE_CLIENT_ID: 'com.iphoneadvanced.web', APPLE_TEAM_ID: 'TEAM123456', APPLE_KEY_ID: 'KEY1234567', APPLE_PRIVATE_KEY: await applePem(),
   };
@@ -104,10 +106,12 @@ test('google sign-in creates an account, then signs back in by subject', async (
   res = await signIn('google', { sub: 'g-1', email: 'renamed@example.com', email_verified: true }, fake);
   assert.equal(res.status, 303);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM users').get().n, 1);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM analytics_events WHERE event_name='signup'").get().n, 1);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM analytics_events WHERE event_name='login'").get().n, 1);
 });
 
 test('apple sign-in signs a client secret and handles form_post', async () => {
-  const { req, signIn } = await boot();
+  const { req, signIn, db, env } = await boot();
   const fake = fakeProviders();
   const res = await signIn('apple', { sub: '001.apple', email: 'x@privaterelay.appleid.com', email_verified: 'true' }, fake);
   assert.equal(res.status, 303);
@@ -116,6 +120,9 @@ test('apple sign-in signs a client secret and handles form_post', async () => {
   assert.equal(secret.sub, 'com.iphoneadvanced.web');
   assert.equal(secret.aud, 'https://appleid.apple.com');
   assert.match(await (await req('/account')).text(), /signs in with Apple/);
+  const stored = db.raw.prepare("SELECT revocation_token FROM identities WHERE provider='apple'").get().revocation_token;
+  assert.ok(!stored.includes('fake-apple-refresh-token'));
+  assert.equal(await openToken(stored, env.TOKEN_ENCRYPTION_KEY, '001.apple'), 'fake-apple-refresh-token');
 });
 
 test('linking to an unconfirmed password account turns the password off', async () => {
@@ -181,6 +188,11 @@ test('a new Google account gets starter credit once, and the Get flow lands on t
   assert.equal(balance(), 250_000);
   assert.equal(db.raw.prepare("SELECT description FROM ledger WHERE kind = 'topup'").get().description, 'Welcome credit');
 
+  res = await req(next);
+  assert.equal(res.status, 302, 'installation requires explicit AI consent');
+  const privacy = await (await req(res.headers.get('location'))).text();
+  const csrf = privacy.match(/name="csrf" value="([^"]+)"/)[1];
+  await req('/account/ai-privacy', { method: 'POST', body: new URLSearchParams({ csrf, version: '1', allowed: 'true', next }).toString() });
   res = await req(next);
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('cache-control'), 'no-store');
