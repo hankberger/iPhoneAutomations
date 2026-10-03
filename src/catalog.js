@@ -20,6 +20,7 @@ const BLOCK_OUT = { action: 'Stop and Output', detail: 'Hands the answer back to
 const BLOCKS = [
   {
     slug: 'ask-ai',
+    icloudUrl: 'https://www.icloud.com/shortcuts/60c7f7cc56d143c6950bdc048f254a1c',
     icon: 'spark',
     color: 'violet',
     name: 'Ask AI',
@@ -34,6 +35,7 @@ const BLOCKS = [
   },
   {
     slug: 'ask-about-image',
+    icloudUrl: 'https://www.icloud.com/shortcuts/f2d01f47d8c544f19ee2cf8aec0a8ddf',
     icon: 'eye',
     color: 'teal',
     name: 'Ask AI About an Image',
@@ -53,6 +55,7 @@ const BLOCKS = [
   },
   {
     slug: 'transcribe-audio',
+    icloudUrl: 'https://www.icloud.com/shortcuts/94dd8d80defd42999e7dcce6d0453b99',
     icon: 'mic',
     color: 'red',
     name: 'Transcribe Audio',
@@ -68,6 +71,7 @@ const BLOCKS = [
   },
   {
     slug: 'pull-out-details',
+    icloudUrl: 'https://www.icloud.com/shortcuts/fe32f34ae194411196c218742ab3e848',
     icon: 'list',
     color: 'orange',
     name: 'Pull Out Details',
@@ -86,6 +90,7 @@ const BLOCKS = [
   },
   {
     slug: 'pick-a-category',
+    icloudUrl: 'https://www.icloud.com/shortcuts/ec83ee7a92fe404b8b22e3ad943a62f3',
     icon: 'tag',
     color: 'blue',
     name: 'Pick a Category',
@@ -100,6 +105,7 @@ const BLOCKS = [
   },
   {
     slug: 'make-an-image',
+    icloudUrl: 'https://www.icloud.com/shortcuts/e4420630924f442387169174122871c3',
     icon: 'image',
     color: 'pink',
     name: 'Make an Image',
