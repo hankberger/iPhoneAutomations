@@ -58,9 +58,14 @@ test('plain http redirects to https', async () => {
 
 test('pages render', async () => {
   const { req } = await boot();
-  for (const p of ['/', '/automations', '/automations/reply-drafter', '/automations/tone-shifter', '/pricing', '/terms', '/privacy', '/support', '/login', '/signup']) {
+  for (const p of ['/', '/automations', '/automations/reply-drafter', '/automations/tone-shifter', '/terms', '/privacy', '/support', '/login', '/signup']) {
     assert.equal((await req(p)).status, 200, p);
   }
+  const pricing = await req('/pricing');
+  assert.equal(pricing.status, 301);
+  assert.equal(pricing.headers.get('location'), '/terms#rates');
+  assert.match(await (await req('/terms')).text(), /id="rates"[\s\S]*Advanced text/);
+  assert.doesNotMatch(await (await req('/')).text(), /href="\/pricing"/);
   const search = await (await req('/automations?q=meeting')).text();
   assert.match(search, /Summarize My Meeting Notes/);
   assert.match(search, /1 result for/);

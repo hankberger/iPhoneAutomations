@@ -325,12 +325,12 @@ app.get('/download/:slug', async (c) => {
     },
   });
 });
-app.get('/pricing', (c) => c.html(views.pricing({ user: c.get('user') })));
+app.get('/pricing', (c) => c.redirect('/terms#rates', 301));
 app.get('/terms', (c) => c.html(legal.terms({ user: c.get('user') })));
 app.get('/privacy', (c) => c.html(legal.privacy({ user: c.get('user') })));
 app.get('/app/terms', c => c.html(legal.terms({ appMode: true })));
 app.get('/app/privacy', c => c.html(legal.privacy({ appMode: true })));
-app.get('/app/pricing', c => c.html(views.pricing({ appMode: true })));
+app.get('/app/pricing', (c) => c.redirect('/app/terms#rates', 301));
 
 app.get('/admin', requireAdmin, async (c) => {
   return c.html(admin({ user: c.get('user'), data: await dashboardData(c.env.DB, c.req.query('days')) }));
@@ -466,11 +466,11 @@ app.get('/account/ai-privacy', requireUser, c => {
   return c.html(views.layout({ title: 'AI Privacy', user: c.get('user'), body: `<section class="wrap narrow page-head">
     <h1>AI data sharing</h1><p>${AI_DISCLOSURE}</p><p>You can browse without permission. Turning it off blocks future calls from all your keys; requests already sent cannot be recalled.</p>
     <p>Current setting: ${hasAIConsent(c.get('user')) ? 'Allowed' : 'Not allowed'}.</p>
-    <form method="post"><input type="hidden" name="csrf" value="${views.e(c.get('user').csrf)}">
+    <form class="stack-form" method="post"><input type="hidden" name="csrf" value="${views.e(c.get('user').csrf)}">
     <input type="hidden" name="version" value="${AI_CONSENT_VERSION}">
     <input type="hidden" name="next" value="${views.e(safeNext(c.req.query('next')))}">
-    <button class="btn" name="allowed" value="true">Allow AI data sharing</button>
-    <button class="btn" name="allowed" value="false">Turn off AI data sharing</button></form></section>` }));
+    <div class="btn-row"><button class="btn" name="allowed" value="true">Allow AI data sharing</button>
+    <button class="btn" name="allowed" value="false">Turn off AI data sharing</button></div></form></section>` }));
 });
 app.post('/account/ai-privacy', requireUser, async c => {
   const form = c.get('form');
@@ -483,9 +483,9 @@ app.get('/account/delete', requireUser, c => {
   return c.html(views.layout({ title: 'Delete account', user: c.get('user'), body: `<section class="wrap narrow page-head">
     <h1>Permanently delete account</h1><p>This cannot be undone. Your data, sessions and keys will be removed. All shortcuts lose access and remaining credit is forfeited. This does not request a payment refund. Unlinked payment identifiers remain to prevent replay.</p>
     <p>Request any Apple refund through <a href="https://reportaproblem.apple.com">Apple</a> before deletion. Contact support for web-payment questions.</p>
-    <form method="post"><input type="hidden" name="csrf" value="${views.e(c.get('user').csrf)}">
+    <form class="stack-form" method="post"><input type="hidden" name="csrf" value="${views.e(c.get('user').csrf)}">
     <label>Type DELETE to confirm<input name="confirmation" required autocomplete="off"></label>
-    <button class="btn" type="submit">Permanently delete account</button></form><a href="/account">Cancel</a></section>` }));
+    <div class="btn-row"><button class="btn" type="submit">Permanently delete account</button><a class="btn btn-soft" href="/account">Cancel</a></div></form></section>` }));
 });
 app.post('/account/delete', requireUser, async c => {
   if (c.get('form').confirmation !== 'DELETE') return c.text('Type DELETE to confirm permanent deletion.', 400);

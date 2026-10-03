@@ -29,7 +29,7 @@ function boot(env = {}) {
 
 test('banner shows on site pages but not in-app pages', async () => {
   const { req } = boot();
-  for (const path of ['/', '/automations', '/pricing', '/login']) assert.match(await (await req(path)).text(), /Mobile app coming soon/, path);
+  for (const path of ['/', '/automations', '/terms', '/login']) assert.match(await (await req(path)).text(), /Mobile app coming soon/, path);
   assert.doesNotMatch(await (await req('/app/privacy')).text(), /Mobile app coming soon/);
 });
 

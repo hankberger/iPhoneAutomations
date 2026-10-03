@@ -89,7 +89,6 @@ ${appMode ? '' : waitlistBanner}
     <a class="brand" href="${appMode ? '/app/privacy' : '/'}">${LOGO}<span>Advanced Automations</span></a>
     ${appMode ? '' : `<nav class="nav">
       ${nav('/automations', 'Blocks')}
-      ${nav('/pricing', 'Pricing')}
       ${user?.is_admin ? nav('/admin', 'Analytics') : ''}
       ${user ? `<a class="btn btn-sm" href="/account">Account</a>` : `<a class="btn btn-sm" href="/login">Log in</a>`}
     </nav>`}
@@ -99,7 +98,7 @@ ${appMode ? '' : waitlistBanner}
 <footer class="site-footer">
   <div class="wrap row">
     <span class="brand small">${LOGO}<span>Advanced Automations</span></span>
-    <nav class="footer-links small">${appMode ? '<a href="/app/terms">Terms</a><a href="/app/privacy">Privacy</a>' : '<a href="/pricing">Pricing</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a>'}</nav>
+    <nav class="footer-links small">${appMode ? '<a href="/app/terms">Terms</a><a href="/app/privacy">Privacy</a>' : '<a href="/terms">Terms</a><a href="/privacy">Privacy</a>'}</nav>
     <span class="muted small">© ${new Date().getFullYear()} · iphoneadvanced.com</span>
   </div>
 </footer>
@@ -350,32 +349,16 @@ export function appConnect({ user, state }) {
   });
 }
 
-export function pricing({ user, appMode = false }) {
+// Per-token rates, shown in the Terms (section 3) since the Terms charge at these rates.
+export function ratesTable() {
   const rows = Object.entries(MODELS).map(([id, m]) => {
     const p = retailPrice(id);
     return `<tr><td><strong>${e(m.tier)}</strong></td><td class="num">$${p.input.toFixed(2)}</td><td class="num">$${p.output.toFixed(2)}</td></tr>`;
   }).join('');
-  return layout({
-    title: 'Pricing',
-    appMode,
-    user,
-    active: '/pricing',
-    body: `
-<section class="wrap page-head center">
-  <h1>Simple pricing</h1>
-  <p class="lede">Pay only for the AI your blocks and shortcuts use, from a balance you top up. Credit never expires.</p>
-</section>
-<section class="wrap narrow">
-  <div class="panel">
-    <h2>Per-token rates</h2>
-    <table class="table">
-      <thead><tr><th>AI</th><th class="num">Input / 1M tokens</th><th class="num">Output / 1M tokens</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <p class="small muted">Top-ups: ${TOPUP_AMOUNTS.map((d) => `$${d}`).join(', ')}.</p>
-  </div>
-</section>`,
-  });
+  return `<table class="table">
+  <thead><tr><th>AI</th><th class="num">Input / 1M tokens</th><th class="num">Output / 1M tokens</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>`;
 }
 
 // Brand marks for the sign-in buttons (Google's four-colour G, Apple's logo).
