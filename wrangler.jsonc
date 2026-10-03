@@ -14,7 +14,9 @@
       "database_name": "advanced-automations",
       "database_id": "fafe6876-77c8-4787-b299-93d2c8d0eb45",
       "migrations_dir": "migrations"
-    }
+    },
+    // Hank's shared Waitlist database. Its schema is owned elsewhere: no migrations from this repo.
+    { "binding": "WAITLIST_DB", "database_name": "waitlist", "database_id": "e5cab21f-42c9-43aa-a581-87191c0b01c2" }
   ],
   "vars": {
     "MARKUP": "1.5"
@@ -27,7 +29,9 @@
     // CLOUDFLARE_API_TOKEN from .dev.vars instead of the binding's remote proxy.
     "local": {
       "d1_databases": [
-        { "binding": "DB", "database_name": "advanced-automations", "database_id": "local", "migrations_dir": "migrations" }
+        { "binding": "DB", "database_name": "advanced-automations", "database_id": "local", "migrations_dir": "migrations" },
+        // Create its table locally with scripts/waitlist-local.sql (see README).
+        { "binding": "WAITLIST_DB", "database_name": "waitlist", "database_id": "local-waitlist" }
       ],
       "vars": { "MARKUP": "1.5", "CLOUDFLARE_ACCOUNT_ID": "266374eb0451487fc2fc18565ade47cc" }
     }

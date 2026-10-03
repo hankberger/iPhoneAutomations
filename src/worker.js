@@ -12,12 +12,14 @@ import * as views from './views.js';
 import * as legal from './legal.js';
 import { dashboardData, isAdmin, recordEvent } from './analytics.js';
 import { admin } from './admin-view.js';
+import { joinWaitlist, WAITLIST_COOKIE } from './waitlist.js';
 
 const FORM_LIMIT = 20 * 1024;
 const JSON_LIMIT = 1024 * 1024;
 const OAUTH_COOKIE = 'aa_oauth';
 const STARTER_CREDIT_USD = 0.25;
 const authLimit = rateLimiter({ windowMs: 15 * 60e3, max: 20 });
+const waitlistLimit = rateLimiter({ windowMs: 15 * 60e3, max: 10 });
 
 const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
@@ -269,6 +271,18 @@ app.post('/api/v1/account/delete', accountApi(async (c, user, body) => {
 
 app.use(loadUser);
 
+// Once someone joins the waitlist, stop showing them the banner.
+app.use(async (c, next) => {
+  await next();
+  const joined = getCookie(c, WAITLIST_COOKIE) || c.res.headers.get('set-cookie')?.includes(`${WAITLIST_COOKIE}=`);
+  if (!joined || !c.res.headers.get('content-type')?.startsWith('text/html')) return;
+  const html = await c.res.text();
+  const start = html.indexOf(views.BANNER_START);
+  const end = html.indexOf(views.BANNER_END);
+  const body = start < 0 || end < start ? html : html.slice(0, start) + html.slice(end + views.BANNER_END.length);
+  c.res = new Response(body, c.res);
+});
+
 // Pages
 // Starter credit only goes to Google and Apple sign-ins, so only mention it when they are on.
 
@@ -325,6 +339,18 @@ app.get('/admin/export', requireAdmin, async (c) => {
   const data = await dashboardData(c.env.DB, c.req.query('days'));
   c.header('Content-Disposition', `attachment; filename="analytics-${data.days}d.json"`);
   return c.json(data);
+});
+app.get('/waitlist', (c) => c.html(views.waitlistPage({ user: c.get('user') })));
+app.post('/waitlist', async (c) => {
+  const body = (await readForm(c)) ?? {};
+  const render = (status, page) => c.html(views.waitlistPage({ user: c.get('user'), email: body.email, ...page }), status);
+  if (!waitlistLimit(c.req.header('cf-connecting-ip') || 'local')) return render(429, { error: 'Too many attempts. Wait a few minutes and try again.' });
+  // Bots fill the hidden field; tell them it worked and store nothing.
+  if (body.website) return render(200, { status: 'joined' });
+  const result = await joinWaitlist(c.env.WAITLIST_DB, body.email);
+  if (result.error) return render(result.status, { error: result.error });
+  setCookie(c, WAITLIST_COOKIE, '1', { sameSite: 'Lax', secure: c.get('ctx').secure, maxAge: 365 * 86400, path: '/' });
+  return render(200, { status: result.already ? 'already' : 'joined' });
 });
 app.get('/support', (c) => c.html(legal.support({ user: c.get('user') })));
 
