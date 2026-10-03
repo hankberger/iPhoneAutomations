@@ -304,3 +304,5 @@ input:focus { outline: 3px solid color-mix(in srgb, #7c5cff 45%, transparent); o
 }
 .see-all { margin: 28px 0 40px; }
 .legal [id] { scroll-margin-top: 96px; }
+.stack-form { display: grid; gap: 16px; margin-top: 8px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 12px; }
