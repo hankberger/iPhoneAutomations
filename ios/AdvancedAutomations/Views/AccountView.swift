@@ -30,7 +30,7 @@ struct AccountView: View {
                     }
                 } else {
                     SwiftUI.Section {
-                        SignInCard(message: "Sign in with Apple, Google or email. New Apple and Google accounts start with free credit.")
+                        SignInCard(message: "Sign in with Apple, Google or email.")
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
                     }
