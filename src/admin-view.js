@@ -51,7 +51,7 @@ export function admin({ user, data: d }) {
   </section>
 
   <section class="analytics-actions" aria-labelledby="actions-title"><div class="section-heading"><div><p class="analytics-eyebrow">Where to focus</p><h2 id="actions-title">Turn signals into a next step.</h2></div><span>Observed counts, not targets</span></div><div class="action-grid">
-    <a href="#activation"><b>${num(t.eligible7 - t.activated7)}</b><strong>Missed first value</strong><p>Mature signups without a successful run in week one. Review setup and starter credit.</p></a>
+    <a href="#activation"><b>${num(t.eligible7 - t.activated7)}</b><strong>Missed first value</strong><p>Mature signups without a successful run in week one. Review setup and the first top-up.</p></a>
     <a href="#quality"><b>${num(blocked)}</b><strong>Credit-blocked users</strong><p>People who hit insufficient credit. Check top-up friction and required reservations.</p></a>
     <a href="#engagement"><b>${d.coverage.weekly ? num(w.lapsed) : '—'}</b><strong>Went quiet this week</strong><p>${d.coverage.weekly ? 'Active in the previous week, absent this week. Investigate their last useful workflow.' : 'Needs 14 complete days of request history before interpreting lapses.'}</p></a>
   </div></section>

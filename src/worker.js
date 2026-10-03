@@ -17,7 +17,6 @@ import { joinWaitlist, WAITLIST_COOKIE } from './waitlist.js';
 const FORM_LIMIT = 20 * 1024;
 const JSON_LIMIT = 1024 * 1024;
 const OAUTH_COOKIE = 'aa_oauth';
-const STARTER_CREDIT_USD = 0.25;
 const authLimit = rateLimiter({ windowMs: 15 * 60e3, max: 20 });
 const waitlistLimit = rateLimiter({ windowMs: 15 * 60e3, max: 10 });
 
@@ -45,9 +44,7 @@ app.use(async (c, next) => {
 // Services are cheap wrappers over the bindings, so build them per request.
 app.use(async (c, next) => {
   const appUrl = (c.env.APP_URL || new URL(c.req.url).origin).replace(/\/$/, '');
-  const starterUsd = c.env.STARTER_CREDIT_USD === undefined ? STARTER_CREDIT_USD : Number(c.env.STARTER_CREDIT_USD);
-  const starterMicros = Math.round((starterUsd || 0) * MICROS);
-  const auth = createAuth(c.env.DB, { starterMicros });
+  const auth = createAuth(c.env.DB);
   const billing = createBilling(c.env.DB, { stripeKey: c.env.STRIPE_SECRET_KEY, webhookSecret: c.env.STRIPE_WEBHOOK_SECRET, appUrl });
   c.set('ctx', {
     appUrl, auth, billing, db: c.env.DB,
@@ -60,7 +57,6 @@ app.use(async (c, next) => {
         : null),
     }),
     oauth: oauthProviders(c.env),
-    starterMicros,
     apiUrl: `${appUrl}/api/v1/generate`,
     secure: appUrl.startsWith('https://'),
   });
@@ -284,8 +280,6 @@ app.use(async (c, next) => {
 });
 
 // Pages
-// Starter credit only goes to Google and Apple sign-ins, so only mention it when they are on.
-
 app.get('/', (c) => c.html(views.landing({ user: c.get('user') })));
 app.get('/automations', (c) => {
   const q = c.req.query('category');

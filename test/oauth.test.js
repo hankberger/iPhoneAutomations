@@ -175,7 +175,7 @@ test('rejects bad state, wrong audience, stale nonce and unverified email', asyn
   assert.equal((await req('/account')).status, 302);
 });
 
-test('a new Google account gets starter credit once, and the Get flow lands on the install page', async () => {
+test('a new Google account starts with no credit, and the Get flow lands on the install page', async () => {
   const { req, signIn, db } = await boot();
   const fake = fakeProviders();
   const next = '/automations/summarize-anything/install';
@@ -185,8 +185,8 @@ test('a new Google account gets starter credit once, and the Get flow lands on t
   let res = await signIn('google', { sub: 'g-9', email: 'fresh@example.com', email_verified: true }, fake, { next });
   assert.equal(res.headers.get('location'), next);
   const balance = () => db.raw.prepare('SELECT balance_micros AS b FROM users').get().b;
-  assert.equal(balance(), 250_000);
-  assert.equal(db.raw.prepare("SELECT description FROM ledger WHERE kind = 'topup'").get().description, 'Welcome credit');
+  assert.equal(balance(), 0);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM ledger').get().n, 0);
 
   res = await req(next);
   assert.equal(res.status, 302, 'installation requires explicit AI consent');
@@ -199,16 +199,10 @@ test('a new Google account gets starter credit once, and the Get flow lands on t
   const html = await res.text();
   assert.match(html, /id="add" href="http:\/\/localhost\/download\/summarize-anything"/);
   assert.match(html, /data-key="aa_live_/);
-  assert.match(html, /\$0\.25 of credit/);
+  assert.match(html, /Your balance is empty/);
 
-  // Signing in again does not add more credit.
-  await signIn('google', { sub: 'g-9', email: 'fresh@example.com', email_verified: true }, fake);
-  assert.equal(balance(), 250_000);
+  // Apple sign-ins get nothing either.
+  await signIn('apple', { sub: 'a-9', email: 'x@example.com', email_verified: 'true' }, fake);
+  assert.equal(db.raw.prepare('SELECT SUM(balance_micros) AS b FROM users').get().b, 0);
 });
 
-test('starter credit can be turned off', async () => {
-  const { env, signIn, db } = await boot();
-  env.STARTER_CREDIT_USD = '0';
-  await signIn('apple', { sub: 'a-9', email: 'x@example.com', email_verified: 'true' }, fakeProviders());
-  assert.equal(db.raw.prepare('SELECT balance_micros AS b FROM users').get().b, 0);
-});

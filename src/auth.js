@@ -57,9 +57,7 @@ export function validateCredentials(email, password) {
   return { email: e, password: String(password) };
 }
 
-// `starterMicros` is credit given once to accounts created through Google or Apple sign-in,
-// whose emails are verified, so the first run of a shortcut works before any top-up.
-export function createAuth(db, { starterMicros = 0 } = {}) {
+export function createAuth(db) {
   const q = {
     userByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
     // Read the permanent registry, not MAX(users.id): deleting the highest (or
@@ -88,8 +86,6 @@ export function createAuth(db, { starterMicros = 0 } = {}) {
     verifyUser: db.prepare('UPDATE users SET email_verified_at = ? WHERE id = ? AND email_verified_at IS NULL'),
     deleteUserSessions: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
     linkedProviders: db.prepare('SELECT provider FROM identities WHERE user_id = ? ORDER BY provider'),
-    starterCredit: db.prepare('UPDATE users SET balance_micros = balance_micros + ? WHERE id = ?'),
-    starterLedger: db.prepare("INSERT INTO ledger (user_id, kind, amount_micros, description, created_at) VALUES (?, 'topup', ?, 'Welcome credit', ?)"),
   };
 
   async function signup(email, password) {
@@ -149,10 +145,7 @@ export function createAuth(db, { starterMicros = 0 } = {}) {
     }
     try {
       const { id } = await q.insertOauthUser.bind(email, now, now).first();
-      await db.batch([
-        q.insertIdentity.bind(provider, subject, id, email, now),
-        ...(starterMicros > 0 ? [q.starterLedger.bind(id, starterMicros, now), q.starterCredit.bind(starterMicros, id)] : []),
-      ]);
+      await q.insertIdentity.bind(provider, subject, id, email, now).run();
       return { userId: id, created: true };
     } catch (err) {
       if (/UNIQUE/i.test(err.message)) return { error: 'Something changed while signing you in. Please try again.' };

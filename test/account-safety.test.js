@@ -41,7 +41,7 @@ test('account-ID migration preserves existing records and seeds the permanent al
 
 test('password and OAuth signups never reuse IDs, including after every account is deleted', async () => {
   const db = memoryD1();
-  const auth = createAuth(db, { starterMicros: 250000 });
+  const auth = createAuth(db);
   const first = await signup(auth);
   await deleteAccount(db, first, deletionEnv);
   const second = await signup(auth); // The same email is still allowed to re-register.
@@ -51,7 +51,7 @@ test('password and OAuth signups never reuse IDs, including after every account 
     const result = await auth.oauthLogin(provider, { subject: `${provider}-test`, email: `${provider}@example.test`, emailVerified: true });
     assert.equal(result.created, true);
     assert.ok(result.userId > second);
-    assert.equal(await createBilling(db).balance(result.userId), 250000);
+    assert.equal(await createBilling(db).balance(result.userId), 0);
     // Revocation is covered by account-privacy.test.js. Here exercise the final
     // database deletion without needing a synthetic provider token.
     db.raw.prepare('DELETE FROM users WHERE id=?').run(result.userId);
