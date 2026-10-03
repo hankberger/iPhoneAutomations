@@ -34,6 +34,29 @@ export const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="current
 // Grid spark mark; same drawing as public/favicon.svg.
 const LOGO = '<svg class="mark" aria-hidden="true" viewBox="0 0 32 32"><rect x="1" y="1" width="13.5" height="13.5" rx="4" fill="#ff6b3d"/><path d="M24.75 .5c.8 4.9 2.35 6.45 7.25 7.25-4.9.8-6.45 2.35-7.25 7.25-.8-4.9-2.35-6.45-7.25-7.25 4.9-.8 6.45-2.35 7.25-7.25z" fill="#7c5cff"/><rect x="1" y="17.5" width="13.5" height="13.5" rx="4" fill="#10b981"/><rect x="17.5" y="17.5" width="13.5" height="13.5" rx="4" fill="#0ea5e9"/></svg>';
 
+// Shown above the header on every site page until the visitor joins (the Worker strips it
+// between the markers once the waitlist cookie is set). <details> opens the form without JS.
+export const BANNER_START = '<!--waitlist-banner-->';
+export const BANNER_END = '<!--/waitlist-banner-->';
+const waitlistForm = (email = '') => `
+    <form class="wl-form" method="post" action="/waitlist">
+      <label class="sr-only" for="wl-email">Email</label>
+      <input id="wl-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required value="${e(email)}">
+      <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <button class="btn btn-sm" type="submit">Join</button>
+    </form>`;
+const waitlistBanner = `${BANNER_START}
+<aside class="wl-banner" aria-label="Mobile app waitlist">
+  <div class="wrap wl-row">
+    <span class="wl-tiles" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <p class="wl-copy"><strong>Mobile app coming soon.</strong> <span>Be the first to know when it lands on the App Store.</span></p>
+    <details class="wl-join">
+      <summary class="btn btn-sm">Join the waitlist</summary>${waitlistForm()}
+    </details>
+  </div>
+</aside>
+${BANNER_END}`;
+
 export function layout({ title, user, body, active = '', stylesheet = '', appMode = false }) {
   const nav = (href, label) => `<a href="${href}"${active === href ? ' aria-current="page"' : ''}>${label}</a>`;
   return `<!doctype html>
@@ -60,6 +83,7 @@ export function layout({ title, user, body, active = '', stylesheet = '', appMod
 ${stylesheet ? `<link rel="stylesheet" href="${e(stylesheet)}">` : ''}
 </head>
 <body>
+${appMode ? '' : waitlistBanner}
 <header class="site-header">
   <div class="wrap row">
     <a class="brand" href="${appMode ? '/app/privacy' : '/'}">${LOGO}<span>Advanced Automations</span></a>
@@ -447,3 +471,27 @@ export const notFound = ({ user }) => layout({
   title: 'Not found', user,
   body: '<section class="wrap page-head center"><h1>Nothing here</h1><p class="lede">That page does not exist. <a href="/automations">Browse blocks</a>.</p></section>',
 });
+
+export function waitlistPage({ user, status, error, email = '' }) {
+  const done = status === 'joined' || status === 'already';
+  return layout({
+    title: 'Mobile app waitlist',
+    user,
+    body: `
+<section class="wrap auth">
+  <div class="auth-tiles" aria-hidden="true">${AUTOMATIONS.slice(0, 4).map((a) => `<span class="mini c-${a.color}">${icon(a.icon)}</span>`).join('')}</div>
+  <div class="auth-card">
+    <h1>${done ? 'You’re on the list' : 'The app is coming'}</h1>
+    <p class="muted">${status === 'already' ? 'That email was already on the waitlist. We’ll let you know when the app is ready.' : done ? 'We’ll email you when the Advanced Automations app is on the App Store.' : 'Leave your email and we’ll tell you when the Advanced Automations app is on the App Store.'}</p>
+    ${error ? `<p class="alert" role="alert">${e(error)}</p>` : ''}
+    ${done ? '<a class="btn btn-lg btn-block" href="/automations">Browse the blocks</a>' : `
+    <form class="wl-page-form" method="post" action="/waitlist">
+      <label>Email<input name="email" type="email" autocomplete="email" required value="${e(email)}"></label>
+      <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <button class="btn btn-lg btn-block" type="submit">Join the waitlist</button>
+    </form>`}
+    <p class="small muted center">We only use your email to tell you about the app. See our <a href="/privacy">Privacy Policy</a>.</p>
+  </div>
+</section>`,
+  });
+}

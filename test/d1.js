@@ -3,10 +3,11 @@ import fs from 'node:fs';
 
 // Minimal in-memory stand-in for the D1 binding, backed by node:sqlite, so tests run
 // the real SQL (migrations included) without workerd. Covers what src/ uses.
-export function memoryD1({ beforeMigration = () => {} } = {}) {
+export function memoryD1({ beforeMigration = () => {}, schema } = {}) {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON;');
-  for (const f of fs.readdirSync(new URL('../migrations', import.meta.url)).sort()) {
+  if (schema) db.exec(schema);
+  else for (const f of fs.readdirSync(new URL('../migrations', import.meta.url)).sort()) {
     // Upgrade tests can seed an older schema before applying the next migration.
     beforeMigration(f, db);
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'));
