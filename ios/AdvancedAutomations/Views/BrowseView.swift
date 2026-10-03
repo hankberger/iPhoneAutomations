@@ -10,7 +10,7 @@ struct BrowseView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("All free. Each one runs in the Shortcuts app and calls our API with your key.")
+                    Text("Each one runs in the Shortcuts app and calls our API with your key.")
                         .foregroundStyle(.secondary)
                         .padding(.horizontal)
 

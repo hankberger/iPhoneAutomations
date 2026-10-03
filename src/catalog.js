@@ -226,7 +226,7 @@ export const AUTOMATIONS = [
     prompt: 'This is a transcript of a meeting, call or lecture. Write notes in plain text in exactly this layout:\n<short title>\n\n<summary in two or three sentences>\n\nDecisions\n- <decision>\n\nAction items\n- <task> (<owner>, <due date>)\n\nOnly include owners and dates that were said. If nothing was decided, or no one took on a task, leave that whole section out, heading included.',
     inside: [
       { action: 'Record Audio', detail: 'Tap Done to stop.' },
-      { action: 'Ask Advanced Automations', detail: 'Sends the recording to our API with your key. Whisper transcribes it, then Llama writes the notes.' },
+      { action: 'Ask Advanced Automations', detail: 'Sends the recording to our API with your key. It transcribes the recording, then writes the notes.' },
       { action: 'Create Note', detail: 'In Apple Notes, with the full transcript underneath.' },
     ],
   },

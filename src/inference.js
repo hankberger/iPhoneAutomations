@@ -3,9 +3,9 @@ import { MICROS, formatUsd } from './billing.js';
 // Cloudflare Workers AI text models we resell, with Cloudflare's USD price per million tokens.
 // Check these against developers.cloudflare.com/workers-ai/platform/pricing before launch.
 export const MODELS = {
-  '@cf/meta/llama-3.3-70b-instruct-fp8-fast': { label: 'Llama 3.3 70B', input: 0.293, output: 2.253 },
-  '@cf/mistralai/mistral-small-3.1-24b-instruct': { label: 'Mistral Small 3.1', input: 0.351, output: 0.555, vision: true },
-  '@cf/meta/llama-3.1-8b-instruct-fp8-fast': { label: 'Llama 3.1 8B', input: 0.045, output: 0.384 },
+  '@cf/meta/llama-3.3-70b-instruct-fp8-fast': { label: 'Llama 3.3 70B', tier: 'Advanced text', input: 0.293, output: 2.253 },
+  '@cf/mistralai/mistral-small-3.1-24b-instruct': { label: 'Mistral Small 3.1', tier: 'Vision: photos and screenshots', input: 0.351, output: 0.555, vision: true },
+  '@cf/meta/llama-3.1-8b-instruct-fp8-fast': { label: 'Llama 3.1 8B', tier: 'Fast text', input: 0.045, output: 0.384 },
 };
 export const DEFAULT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const DEFAULT_MAX_TOKENS = 1024;

@@ -179,9 +179,8 @@ app.use(loadUser);
 
 // Pages
 // Starter credit only goes to Google and Apple sign-ins, so only mention it when they are on.
-const starter = (c) => (Object.keys(c.get('ctx').oauth).length ? c.get('ctx').starterMicros : 0);
 
-app.get('/', (c) => c.html(views.landing({ user: c.get('user'), starterMicros: starter(c) })));
+app.get('/', (c) => c.html(views.landing({ user: c.get('user') })));
 app.get('/automations', (c) => {
   const q = c.req.query('category');
   const category = CATEGORIES.includes(q) ? q : '';
@@ -190,7 +189,7 @@ app.get('/automations', (c) => {
 app.get('/automations/:slug', (c) => {
   const a = findAutomation(c.req.param('slug'));
   if (!a) return c.html(views.notFound({ user: c.get('user') }), 404);
-  return c.html(views.automationDetail({ user: c.get('user'), a, apiUrl: c.get('ctx').apiUrl, starterMicros: starter(c) }));
+  return c.html(views.automationDetail({ user: c.get('user'), a, apiUrl: c.get('ctx').apiUrl }));
 });
 // Creates a key for this shortcut and hands it over with the signed file. Keys are only stored
 // hashed, so each visit makes a new one; the page is never cached.
@@ -224,10 +223,10 @@ app.get('/privacy', (c) => c.html(legal.privacy({ user: c.get('user') })));
 
 // Auth
 for (const mode of ['login', 'signup']) {
-  app.get(`/${mode}`, (c) => (c.get('user') ? c.redirect(safeNext(c.req.query('next')), 302) : c.html(views.authPage({ mode, next: c.req.query('next'), providers: providerList(c), starterMicros: starter(c) }))));
+  app.get(`/${mode}`, (c) => (c.get('user') ? c.redirect(safeNext(c.req.query('next')), 302) : c.html(views.authPage({ mode, next: c.req.query('next'), providers: providerList(c) }))));
   app.post(`/${mode}`, async (c) => {
     const body = (await readForm(c)) ?? {};
-    const render = (status, error) => c.html(views.authPage({ mode, error, email: body.email, next: body.next, providers: providerList(c), starterMicros: starter(c) }), status);
+    const render = (status, error) => c.html(views.authPage({ mode, error, email: body.email, next: body.next, providers: providerList(c) }), status);
     if (!authLimit(c.req.header('cf-connecting-ip') || 'local')) return render(429, 'Too many attempts. Wait a few minutes and try again.');
     const creds = validateCredentials(body.email, body.password);
     if (creds.error) return render(400, mode === 'login' ? 'That email and password do not match.' : creds.error);
