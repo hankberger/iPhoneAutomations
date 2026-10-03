@@ -1,8 +1,8 @@
 // Compiles shortcuts/*.cherri into signed, installable files at public/shortcuts/<slug>.shortcut.
 //
-// Needs Cherri with correct import-question indexes and Health quantity support.
+// Needs Cherri with Health quantity support and unique control-flow grouping UUIDs.
 // Tested: upstream a66db15b7f247f3121726c2a2b72becfeef3d96b (import fix included),
-// plus scripts/cherri-health-quantity.patch. Older versions need the import patch too.
+// plus scripts/cherri-health-quantity.patch and scripts/cherri-grouping-uuids.patch.
 // Put it on PATH or set CHERRI=/path/to/cherri.
 // Usage: npm run shortcuts [-- slug ...]
 import { execFileSync } from 'node:child_process';
@@ -17,7 +17,9 @@ import { verifyMealWorkflow } from './shortcut-validation.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CHERRI = process.env.CHERRI || 'cherri';
 const API_BASE = (process.env.SHORTCUT_API_BASE || 'https://iphoneadvanced.com').replace(/\/$/, '');
-export const KEY_QUESTION = 'Paste your Advanced Automations key. We copied it for you when you tapped Add to Shortcuts.';
+export const KEY_PROMPT = 'Paste your Advanced Automations key. We copied it when you tapped Get. Lost it? Make one in your account at iphoneadvanced.com.';
+// Every shortcut keeps the key in one file in the Shortcuts folder, so it is asked for once.
+export const KEY_FILE = 'advanced-automations-key.txt';
 
 const INCLUDES = ['calendar', 'crypto', 'documents', 'images', 'media', 'network', 'photos', 'sharing', 'text', 'web']
   .map((c) => `#include 'actions/${c}'`).join('\n');
@@ -30,14 +32,36 @@ const INCLUDES = ['calendar', 'crypto', 'documents', 'images', 'media', 'network
 const request = (url, { choice, image, audio, instructions, recipeVersion }) => (audio
   ? `fileRequest("${url}", "POST", ${audio}, {"Authorization": "Bearer {apiKey}"})`
   : `jsonRequest("${url}", "POST", {"input": "{input}"${choice ? ', "choice": "{choice}"' : ''}${image ? ', "image": "{image}"' : ''}${instructions ? ', "instructions": "{instructions}"' : ''}${recipeVersion ? `, "recipe_version": ${recipeVersion}` : ''}}, {"Authorization": "Bearer {apiKey}"})`);
+// iOS's import-question screen leaves Add Shortcut dead, so the key is asked for on the first
+// run instead and saved. A key the server rejects is overwritten so the next run asks again.
+const keyBlock = `
+const savedKey = getFile("${KEY_FILE}", nil, false)
+@storedKey = "{savedKey}"
+if @storedKey !contains "aa_live_" {
+    const pasted = getClipboard()
+    @clip = "{pasted}"
+    @suggested = ""
+    if @clip contains "aa_live_" {
+        @suggested = trimWhitespace(@clip)
+    }
+    const entered = prompt("${KEY_PROMPT}", "Text", "{@suggested}")
+    @storedKey = "{entered}"
+    saveFile("${KEY_FILE}", @storedKey, true)
+}
+`;
 const callBlock = (slug, sends) => `
-const apiKey = trimWhitespace(key)
+const apiKey = trimWhitespace(@storedKey)
 const response = ${request(`${API_BASE}/api/v1/run/${slug}`, sends)}
 const reply = getDictionary(response)
 const result = getValue(reply, "text")
 if !result {
     const problem = getValue(reply, "error")
     const link = getValue(reply, "action_url")
+    const badKey = getValue(reply, "key_invalid")
+    if badKey {
+        @cleared = "reset"
+        saveFile("${KEY_FILE}", @cleared, true)
+    }
     confirm("{problem}", "Advanced Automations")
     openURL("{link}")
     stop()
@@ -48,8 +72,7 @@ export function cherriSource(a) {
   if (!body.includes('// @call')) throw new Error(`${a.slug}.cherri has no "// @call" marker`);
   return `${INCLUDES}
 #define name ${a.name}
-#question key "${KEY_QUESTION}" ""
-${body.replace('// @call', callBlock(a.slug, {
+${body.replace('// @call', keyBlock + callBlock(a.slug, {
     recipeVersion: a.recipeVersion,
     choice: /\bconst choice\b/.test(body),
     image: /(\bconst |@)image\b/.test(body),
@@ -58,14 +81,13 @@ ${body.replace('// @call', callBlock(a.slug, {
   }))}`;
 }
 
-// Checks that the import question points at the Trim Whitespace action that holds the key.
-// Older Cherri versions get ActionIndex wrong (see scripts/cherri-import-questions.patch).
-function checkImportQuestion(xml) {
-  const ids = [...xml.matchAll(/<key>WFWorkflowActionIdentifier<\/key>\s*<string>([^<]+)<\/string>/g)].map((m) => m[1]);
-  const index = Number(xml.match(/<key>WFWorkflowImportQuestions<\/key>\s*<array>\s*<dict>\s*<key>ActionIndex<\/key>\s*<integer>(\d+)<\/integer>/)?.[1]);
-  if (ids[index] !== 'is.workflow.actions.text.trimwhitespace') {
-    throw new Error(`Import question points at action ${index} (${ids[index]}). Build Cherri with scripts/cherri-import-questions.patch.`);
+// Checks the key comes from the saved file, not an import question: iOS's setup screen for
+// those never lets Add Shortcut through.
+function checkKeySetup(xml) {
+  if (/<key>WFWorkflowImportQuestions<\/key>\s*<array>\s*<dict>/.test(xml)) {
+    throw new Error('Shortcut has an import question. The key is asked for on first run instead.');
   }
+  if (!xml.includes(`<string>${KEY_FILE}</string>`)) throw new Error(`Shortcut does not read ${KEY_FILE}`);
 }
 
 // macOS signs locally without silently uploading source to a third-party fallback.
@@ -78,7 +100,7 @@ function build(a, outDir) {
     const localSign = process.platform === 'darwin';
     execFileSync(CHERRI, [src, '--debug', '--derive-uuids', '--share=anyone', ...(localSign ? ['--skip-sign'] : []), `--output=${join(work, `${a.slug}.shortcut`)}`], { cwd: work, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 });
     const xml = readFileSync(join(work, `${a.name}.plist`), 'utf8');
-    checkImportQuestion(xml);
+    checkKeySetup(xml);
     let mealWorkflow;
     if (a.slug === 'snap-calories') {
       mealWorkflow = JSON.parse(execFileSync('plutil', ['-convert', 'json', '-o', '-', join(work, `${a.name}.plist`)], { encoding: 'utf8' }));

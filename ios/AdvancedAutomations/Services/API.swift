@@ -95,7 +95,7 @@ final class API: Sendable {
         }
     }
 
-    // A fresh key for a shortcut being installed; Shortcuts asks for it on import.
+    // A fresh key for a shortcut being installed; the shortcut asks for it on its first run.
     func makeKey(named name: String) async throws -> String {
         struct Key: Decodable { var key: String }
         var req = try request("api/v1/keys")

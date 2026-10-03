@@ -285,7 +285,6 @@
         }
       ],
       "typicalCost": 0.00013,
-      "icloudUrl": "https://www.icloud.com/shortcuts/bab137385ec341bf8fe39c3e341c85af",
       "tags": [
         "summarize",
         "reading",
@@ -320,7 +319,6 @@
         }
       ],
       "typicalCost": 0.000639,
-      "icloudUrl": "https://www.icloud.com/shortcuts/021815833cfe459d94a1bf40bdf272e8",
       "tags": [
         "write",
         "messages",
@@ -423,7 +421,7 @@
         },
         {
           "action": "Ask Advanced Automations",
-          "detail": "Sends the recording to our API with your key. Whisper transcribes it, then Llama writes the notes."
+          "detail": "Sends the recording to our API with your key. It transcribes the recording, then writes the notes."
         },
         {
           "action": "Create Note",
@@ -431,7 +429,6 @@
         }
       ],
       "typicalCost": 0.026939,
-      "icloudUrl": "https://www.icloud.com/shortcuts/1509e3f1ec944e04a872b4a5ca8bc61e",
       "tags": [
         "meetings",
         "recording",
@@ -515,7 +512,6 @@
         }
       ],
       "typicalCost": 0.000683,
-      "icloudUrl": "https://www.icloud.com/shortcuts/4371d481e3874f8eb8989e17d5d09157",
       "tags": [
         "tasks",
         "email",
@@ -626,7 +622,6 @@
         }
       ],
       "typicalCost": 0.000683,
-      "icloudUrl": "https://www.icloud.com/shortcuts/4573bf3182584465bd54100f328dfbc0",
       "tags": [
         "safety",
         "messages",

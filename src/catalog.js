@@ -135,7 +135,6 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'summarize-anything',
-    icloudUrl: 'https://www.icloud.com/shortcuts/bab137385ec341bf8fe39c3e341c85af',
     icon: 'doc',
     color: 'orange',
     name: 'Summarize This',
@@ -154,7 +153,6 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'reply-drafter',
-    icloudUrl: 'https://www.icloud.com/shortcuts/021815833cfe459d94a1bf40bdf272e8',
     icon: 'chat',
     color: 'violet',
     name: 'Draft a Reply',
@@ -211,7 +209,6 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'meeting-notes',
-    icloudUrl: 'https://www.icloud.com/shortcuts/1509e3f1ec944e04a872b4a5ca8bc61e',
     icon: 'wave',
     color: 'red',
     name: 'Summarize My Meeting Notes',
@@ -256,7 +253,6 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'smart-reminders',
-    icloudUrl: 'https://www.icloud.com/shortcuts/4371d481e3874f8eb8989e17d5d09157',
     icon: 'bell',
     color: 'yellow',
     name: 'Make Reminders from This',
@@ -315,7 +311,6 @@ export const AUTOMATIONS = [
   },
   {
     slug: 'scam-check',
-    icloudUrl: 'https://www.icloud.com/shortcuts/4573bf3182584465bd54100f328dfbc0',
     icon: 'shield',
     color: 'yellow',
     name: 'Check for a Scam',

@@ -89,7 +89,8 @@ test('installed shortcuts: install page key, friendly errors, prompts from the c
   let res = await run('tone-shifter', { input: 'hey' }, 'aa_live_revoked');
   let json = await res.json();
   assert.equal(res.status, 401);
-  assert.equal(json.action_url, 'http://localhost/automations/tone-shifter');
+  assert.equal(json.action_url, 'http://localhost/account#keys');
+  assert.equal(json.key_invalid, true, 'tells the shortcut to forget its saved key');
 
   res = await run('tone-shifter', { input: 'hey' });
   json = await res.json();
@@ -353,8 +354,14 @@ test('install page downloads the signed file under the shortcut’s name, or ope
   let html = await (await req('/automations/explain-this/install')).text();
   assert.match(html, /id="add" href="http:\/\/localhost\/download\/explain-this"/);
   assert.doesNotMatch(html, /import-shortcut/, 'iOS rejects import-shortcut for anything but iCloud links');
-  html = await (await req('/automations/reply-drafter/install')).text();
-  assert.match(html, new RegExp(`id="add" href="${findAutomation('reply-drafter').icloudUrl.replaceAll('.', '\\.')}"`));
+  const a = findAutomation('reply-drafter');
+  a.icloudUrl = 'https://www.icloud.com/shortcuts/0123456789abcdef0123456789abcdef';
+  try {
+    html = await (await req('/automations/reply-drafter/install')).text();
+    assert.match(html, /id="add" href="https:\/\/www\.icloud\.com\/shortcuts\/0123456789abcdef0123456789abcdef"/);
+  } finally {
+    delete a.icloudUrl;
+  }
 });
 
 test('terms and privacy are linked from every page footer and the signup form', async () => {
