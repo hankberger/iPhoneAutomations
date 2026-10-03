@@ -1,10 +1,10 @@
 # Advanced Automations
 
-Free iPhone Shortcuts automations, with pay-as-you-go AI credit sold at a markup. Domain: iphoneadvanced.com.
+AI building blocks for iOS Shortcuts (Ask AI, Transcribe Audio, Pick a Category and more), plus ready-made shortcuts, with pay-as-you-go AI credit sold at a markup. Domain: iphoneadvanced.com.
 
 Runs on Cloudflare Workers: [Hono](https://hono.dev) for routing, D1 for the database, the Workers AI binding for inference, and Workers static assets for `public/`.
 
-- **Pages:** landing (`/`), catalog (`/automations`), shortcut detail, install page (`/automations/<slug>/install`), pricing, login, signup, account.
+- **Pages:** landing (`/`), catalog of blocks and shortcuts (`/automations`), detail, install page (`/automations/<slug>/install`), pricing, login, signup, account.
 - **Getting a shortcut:** Get → sign in (Google or Apple accounts start with $0.25 of credit, `STARTER_CREDIT_USD` to change) → the install page makes a key for that shortcut, copies it and opens `shortcuts://import-shortcut` with the signed file. Shortcuts asks for the key once, as an import question.
 - **Login:** email and password, PBKDF2-SHA256 hashes (Web Crypto, 100k iterations), server-side sessions in an httpOnly cookie, CSRF tokens on every form, rate-limited login.
 - **Payments:** Stripe Checkout top-ups ($5, $10, $25, $50). Credit is added by the `checkout.session.completed` webhook and again on the success redirect, both idempotent.

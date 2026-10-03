@@ -87,8 +87,6 @@ struct AutomationCard: View {
             Spacer(minLength: 4)
             HStack {
                 Text(automation.isBlock ? "Shortcuts action" : automation.trigger)
-                Spacer()
-                Text(automation.typicalCostLabel)
             }
             .font(.footnote.weight(.semibold))
             .foregroundStyle(.secondary)

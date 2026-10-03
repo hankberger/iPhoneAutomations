@@ -50,7 +50,7 @@ struct WelcomeView: View {
                         .font(.subheadline.weight(.semibold))
                 }
 
-                Text(error ?? "Sign in with Apple, Google or email. New Apple and Google accounts start with free credit.")
+                Text(error ?? "Sign in with Apple, Google or email.")
                     .font(.footnote)
                     .foregroundStyle(error == nil ? .secondary : Color.red)
                     .multilineTextAlignment(.center)

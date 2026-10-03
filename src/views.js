@@ -1,11 +1,10 @@
 import { AUTOMATIONS, CATEGORIES, findAutomation } from './catalog.js';
-import { MODELS, AUDIO_MODELS, IMAGE_MODELS, JEV, retailPrice } from './inference.js';
-import { TOPUP_AMOUNTS, formatUsd, MICROS } from './billing.js';
+import { MODELS, retailPrice } from './inference.js';
+import { TOPUP_AMOUNTS, formatUsd } from './billing.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const e = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
 const date = (ms) => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-const cents = (usd) => (usd * 100 < 0.01 ? '<0.01¢' : `${Number((usd * 100).toPrecision(2))}¢`);
 
 const ICONS = {
   doc: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
@@ -42,16 +41,16 @@ export function layout({ title, user, body, active = '', stylesheet = '', appMod
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${e(title ? `${title} · Advanced Automations` : 'Advanced Automations: free AI Shortcuts for iPhone')}</title>
-<meta name="description" content="Free iPhone Shortcuts with a little AI inside. Tap Get, add it to the Shortcuts app, and run it from anywhere. No subscription.">
+<title>${e(title ? `${title} · Advanced Automations` : 'Advanced Automations: AI building blocks for iOS Shortcuts')}</title>
+<meta name="description" content="AI building blocks for iOS Shortcuts. Drop Ask AI, Transcribe Audio, Pick a Category and more into any shortcut you build. Pay only for the AI you use.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <meta name="theme-color" content="#fbfbfa">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Advanced Automations">
-<meta property="og:title" content="${e(title ? `${title} · Advanced Automations` : 'Advanced Automations: free AI Shortcuts for iPhone')}">
-<meta property="og:description" content="Free iPhone Shortcuts with a little AI inside. Tap Get, add it to the Shortcuts app, and run it from anywhere. No subscription.">
+<meta property="og:title" content="${e(title ? `${title} · Advanced Automations` : 'Advanced Automations: AI building blocks for iOS Shortcuts')}">
+<meta property="og:description" content="AI building blocks for iOS Shortcuts. Drop Ask AI, Transcribe Audio, Pick a Category and more into any shortcut you build. Pay only for the AI you use.">
 <meta property="og:image" content="https://iphoneadvanced.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -65,7 +64,7 @@ ${stylesheet ? `<link rel="stylesheet" href="${e(stylesheet)}">` : ''}
   <div class="wrap row">
     <a class="brand" href="${appMode ? '/app/privacy' : '/'}">${LOGO}<span>Advanced Automations</span></a>
     ${appMode ? '' : `<nav class="nav">
-      ${nav('/automations', 'Shortcuts')}
+      ${nav('/automations', 'Blocks')}
       ${nav('/pricing', 'Pricing')}
       ${user?.is_admin ? nav('/admin', 'Analytics') : ''}
       ${user ? `<a class="btn btn-sm" href="/account">Account</a>` : `<a class="btn btn-sm" href="/login">Log in</a>`}
@@ -94,51 +93,75 @@ const card = (a) => `
 
 const tile = (a, extra = '') => `<a class="tile c-${a.color}${extra}" href="/automations/${a.slug}">${icon(a.icon)}<span>${e(a.name)}</span></a>`;
 
-export const starterCents = (micros) => `${Math.round(micros / 10_000)}¢`;
 const installHref = (a, user) => (user ? `/automations/${a.slug}/install` : `/signup?next=${encodeURIComponent(`/automations/${a.slug}/install`)}`);
 
-export function landing({ user, starterMicros }) {
-  const [explain, reply, meeting, calories, sum, tone, voice, remind, receipt, translate, scam, brief] = [
-    'explain-this', 'reply-drafter', 'meeting-notes', 'snap-calories', 'summarize-anything', 'tone-shifter',
-    'voice-to-notes', 'smart-reminders', 'receipt-reader', 'translate-selection', 'scam-check', 'morning-brief',
-  ].map(findAutomation);
+const blockChip = (a, note = '') => `<li class="step blk c-${a.color}">${icon(a.icon)}<span>${e(a.name)}${note ? ` <small>${e(note)}</small>` : ''}</span></li>`;
+const plainStep = (label) => `<li class="step">${e(label)}</li>`;
+
+// Example shortcuts built from the blocks, shown on the landing page. Each step is either a
+// built-in Shortcuts action (a string) or [block slug, what you tell it].
+const RECIPES = [
+  { name: 'Sort my inbox', how: 'Share an email and get pinged only when it matters.', steps: ['Receive email from Share Sheet', ['pick-a-category', '"Urgent, Needs reply, FYI"'], 'If Result is Urgent', 'Show Notification'] },
+  { name: 'Receipt to log', how: 'Snap a receipt and keep a running expense note.', steps: ['Take Photo', ['pull-out-details', '"total, date, store"'], 'Get Dictionary Value total', 'Append to Note'] },
+  { name: 'Voice memo to-dos', how: 'Ramble for a minute, keep only the action items.', steps: ['Record Audio', ['transcribe-audio'], ['ask-ai', '"List only the action items"'], 'Create Reminder'] },
+  { name: 'What is this error?', how: 'Back Tap on any screen for a plain answer.', steps: ['Take Screenshot', ['ask-about-image', '"What does this error mean?"'], 'Show Result'] },
+];
+
+const recipeCard = (r) => `
+  <div class="recipe">
+    <h3>${e(r.name)}</h3>
+    <p class="small muted">${e(r.how)}</p>
+    <ol class="steps">${r.steps.map((s) => (Array.isArray(s) ? blockChip(findAutomation(s[0]), s[1]) : plainStep(s))).join('')}</ol>
+  </div>`;
+
+export function landing({ user }) {
+  const blocks = AUTOMATIONS.filter((a) => a.block);
+  const ask = findAutomation('ask-ai');
+  const ready = ['meeting-notes', 'reply-drafter', 'snap-calories', 'summarize-anything', 'explain-this', 'scam-check', 'translate-selection', 'receipt-reader'].map(findAutomation);
   return layout({
     user,
     body: `
 <section class="hero wrap">
   <div>
-    <h1>Make your iPhone do the <mark>boring bits.</mark></h1>
-    <p class="lede">Free Shortcuts with a little AI inside. Tap Get, add it to the Shortcuts app, and run it from the Share Sheet, Siri or the Action Button.</p>
+    <h1>AI building blocks for <mark>iOS Shortcuts.</mark></h1>
+    <p class="lede">Give any shortcut real intelligence. Ask questions, read photos and screenshots, transcribe recordings, pull clean data out of anything and make images, each as a single step you drop into the shortcuts you build.</p>
     <div class="cta">
-      <a class="btn btn-lg" href="#shortcuts">Browse shortcuts</a>
-      <a class="link" href="#how">How it works →</a>
+      <a class="btn btn-lg" href="#blocks">Get the blocks</a>
+      <a class="link" href="#recipes">See what you can build →</a>
     </div>
-    ${starterMicros ? `<p class="small muted hero-note">Sign in with Apple and your first ${starterCents(starterMicros)} of AI is on us.</p>` : ''}
   </div>
-  <div class="tiles" aria-label="Featured shortcuts">
-    ${tile(meeting)}${tile(reply, ' tilt-r')}${tile(calories)}
-    ${tile(sum, ' tilt-l')}${tile(voice)}${tile(translate)}
-    <div class="tile tile-result"><div><b>Summarize My Meeting Notes</b>Launch locked for Oct 14. Marcus fixes the pricing page by Friday. Jen drafts the launch email Monday.</div><small>Whisper + Llama 3.3 70B · 2.7¢</small></div>
-    ${tile(explain, ' tilt-r')}
+  <div class="tiles" aria-label="The building blocks">
+    ${blocks.map((a, i) => tile(a, i === 1 ? ' tilt-r' : i === 3 ? ' tilt-l' : '')).join('')}
+    <div class="tile tile-result tile-recipe">
+      <span class="small recipe-label">Your shortcut</span>
+      <ol class="steps">${plainStep('Get Clipboard')}${blockChip(ask, '"Summarize in three lines"')}${plainStep('Show Result')}</ol>
+    </div>
   </div>
 </section>
 
-<section class="wrap section center" id="shortcuts">
-  <h2>Pick one. It’s on your phone in a minute.</h2>
-  <p class="muted">Every shortcut is free. You only pay for the AI it uses, usually well under a cent a run.</p>
-  <div class="grid">${[meeting, reply, calories, sum, voice, explain, remind, translate, tone, receipt, brief, scam].map(card).join('')}</div>
+<section class="wrap section center" id="blocks">
+  <h2>Serious AI, as easy as any other action.</h2>
+  <p class="muted">Each block puts a capable model behind one Run Shortcut step. It sees images, hears audio, returns a Dictionary you can read field by field, and answers with exactly one of your choices so your If just works. More blocks are on the way.</p>
+  <div class="grid grid-3">${blocks.map(card).join('')}</div>
+</section>
+
+<section class="wrap section center" id="recipes">
+  <h2>Snap them together.</h2>
+  <p class="muted">A few shortcuts people build in a couple of minutes. Colored steps are blocks; the rest come with the Shortcuts app.</p>
+  <div class="recipes">${RECIPES.map(recipeCard).join('')}</div>
 </section>
 
 <section class="wrap how" id="how">
-  <div><b>1</b><h3>Tap Get</h3><p>Pick a shortcut and sign in with Apple. It takes one tap.</p></div>
-  <div><b>2</b><h3>Add to Shortcuts</h3><p>The Shortcuts app asks for your key. We’ve already copied it, so just paste.</p></div>
+  <div><b>1</b><h3>Get the blocks</h3><p>Tap Get on the ones you want and sign in with Apple. Each block gets its own key, already copied.</p></div>
+  <div><b>2</b><h3>Drop them in</h3><p>In any shortcut, add Run Shortcut and pick a block. Pass it a List: what to work on, then your instructions.</p></div>
   <div><b>3</b><h3>Run it anywhere</h3><p>Share Sheet, Back Tap, Action Button or Siri. Top up whenever your credit runs low.</p></div>
 </section>
 
-<section class="wrap stats">
-  <div><b>$0</b><p>for every shortcut, forever</p></div>
-  <div><b>${starterMicros ? starterCents(starterMicros) : '&lt;1¢'}</b><p>${starterMicros ? 'free credit when you sign in with Apple or Google' : 'typical cost of one run'}</p></div>
-  <div><b>&lt;1¢</b><p>typical cost of one run, no subscription</p></div>
+<section class="wrap section center" id="shortcuts">
+  <h2>Rather not build? Grab one ready-made.</h2>
+  <p class="muted">Finished shortcuts with the same AI inside. Add one and run it as is.</p>
+  <div class="grid">${ready.map(card).join('')}</div>
+  <p class="see-all"><a class="link" href="/automations">See everything →</a></p>
 </section>`,
   });
 }
@@ -159,37 +182,42 @@ export function catalog({ user, category, query = '' }) {
     return `/automations${suffix ? `?${suffix}` : ''}`;
   };
   const chip = (c, label) => `<a class="chip" href="${href(c)}"${(category || '') === c ? ' aria-current="true"' : ''}>${label}</a>`;
+  const grid = (items, extra = '') => `<div class="grid${extra}">${items.map(card).join('')}</div>`;
+  const body = category || normalized
+    ? `<section class="wrap">
+  ${normalized ? `<p class="small muted">${list.length} result${list.length === 1 ? '' : 's'} for “${e(query)}”</p>` : ''}
+  ${list.length ? grid(list) : '<p class="empty-state">Nothing matches that search. Try “photo”, “meeting”, “write” or “tasks”.</p>'}
+</section>`
+    : `<section class="wrap">
+  <h2 class="cat-h">Building blocks</h2>
+  <p class="muted">Add them to your own shortcuts with Run Shortcut.</p>
+  ${grid(AUTOMATIONS.filter((a) => a.block), ' grid-3')}
+</section>
+<section class="wrap section-sm">
+  <h2 class="cat-h">Ready-made shortcuts</h2>
+  <p class="muted">Finished shortcuts you can run as is.</p>
+  ${grid(AUTOMATIONS.filter((a) => !a.block))}
+</section>`;
   return layout({
-    title: 'Shortcuts',
+    title: 'Blocks',
     user,
     active: '/automations',
     body: `
 <section class="wrap page-head center">
-  <h1>Shortcuts</h1>
-  <p class="lede">All free. Tap one, then Add to Shortcuts. You only pay for the AI each run uses.</p>
+  <h1>AI blocks for Shortcuts</h1>
+  <p class="lede">Drop a block into any shortcut you build, or grab a ready-made one. You only pay for the AI each run uses.</p>
   <form class="catalog-search" action="/automations" method="get" role="search">
     ${category ? `<input type="hidden" name="category" value="${e(category)}">` : ''}
-    <input type="search" name="q" value="${e(query)}" placeholder="Search by task, input or outcome" aria-label="Search shortcuts">
+    <input type="search" name="q" value="${e(query)}" placeholder="Search by task, input or outcome" aria-label="Search blocks and shortcuts">
     <button class="btn btn-sm" type="submit">Search</button>
   </form>
   <div class="chips">${chip('', 'All')}${CATEGORIES.map((c) => chip(c, c)).join('')}</div>
 </section>
-<section class="wrap">
-  ${normalized ? `<p class="small muted">${list.length} result${list.length === 1 ? '' : 's'} for “${e(query)}”</p>` : ''}
-  <div class="grid">${list.length ? list.map(card).join('') : '<p class="empty-state">Nothing matches that search. Try “photo”, “meeting”, “write” or “tasks”.</p>'}</div>
-</section>`,
+${body}`,
   });
 }
 
-function modelLabel(a) {
-  if (a.makesImage) return IMAGE_MODELS[a.model].label;
-  if (a.picksChoice) return JEV.label;
-  const whisper = Object.values(AUDIO_MODELS)[0].label.replace(/ Large.*/, '');
-  if (a.audio && !a.prompt) return whisper;
-  return `${a.audio ? `${whisper} + ` : ''}${MODELS[a.model].label}${a.imageModel ? ` or ${MODELS[a.imageModel].label} for photos` : ''}`;
-}
-
-export function automationDetail({ user, a, apiUrl, starterMicros }) {
+export function automationDetail({ user, a, apiUrl }) {
   const inside = a.inside.map((s, i) => `
     <li><span class="step-n">${i + 1}</span><div><strong>${e(s.action)}</strong>${s.detail ? `<p>${e(s.detail)}</p>` : ''}</div></li>`).join('');
   const runUrl = apiUrl.replace('/generate', `/run/${a.slug}`);
@@ -202,20 +230,18 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
     active: '/automations',
     body: `
 <section class="wrap detail">
-  <a class="link small" href="/automations">← All shortcuts</a>
+  <a class="link small" href="/automations">← ${a.block ? 'All blocks' : 'All blocks and shortcuts'}</a>
   <div class="detail-head c-${a.color}">
     <span class="big-ic">${icon(a.icon)}</span>
     <div class="grow">
       <h1>${e(a.name)}</h1>
       <p class="lede">${e(a.tagline)}</p>
       <div class="get-row">
-        <a class="btn btn-lg btn-get" href="${installHref(a, user)}">${icon('plus')}<span>${user ? 'Add to Shortcuts' : 'Get it free'}</span></a>
-        <p class="small muted">${user ? 'Free. Each run costs about ' + cents(a.typicalCost) + ' from your balance.' : `Free. Sign in with Apple${starterMicros ? ` and start with ${starterCents(starterMicros)} of credit` : ''}.`}</p>
+        <a class="btn btn-lg btn-get" href="${installHref(a, user)}">${icon('plus')}<span>${user ? 'Add to Shortcuts' : 'Get it'}</span></a>
+        <p class="small muted">${user ? 'Each run spends from your balance.' : 'Sign in with Apple to add it.'}</p>
       </div>
       <dl class="facts">
         <div><dt>Runs from</dt><dd>${e(a.trigger)}</dd></div>
-        <div><dt>Model</dt><dd>${e(modelLabel(a))}</dd></div>
-        <div><dt>Typical cost</dt><dd>~${cents(a.typicalCost)} ${a.audio ? `per ${a.typicalMinutes}-minute recording` : 'per run'}</dd></div>
       </dl>
     </div>
   </div>
@@ -229,7 +255,7 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
     <aside class="panel">
       <h3>How adding works</h3>
       <ol class="mini-steps">
-        <li>Tap <strong>${user ? 'Add to Shortcuts' : 'Get it free'}</strong>${user ? '' : ' and sign in'}.</li>
+        <li>Tap <strong>${user ? 'Add to Shortcuts' : 'Get it'}</strong>${user ? '' : ' and sign in'}.</li>
         <li>We copy a key for this shortcut to your clipboard and open the Shortcuts app.</li>
         <li>When Shortcuts asks for your key, paste it and tap <strong>Add Shortcut</strong>.</li>
       </ol>
@@ -248,7 +274,6 @@ export function automationDetail({ user, a, apiUrl, starterMicros }) {
 export function install({ user, a, key, balance, fileUrl }) {
   const icloud = Boolean(a.icloudUrl);
   const href = icloud ? a.icloudUrl : fileUrl;
-  const runs = a.typicalCost > 0 ? Math.floor(balance / MICROS / a.typicalCost) : 0;
   return layout({
     title: `Add ${a.name}`,
     user,
@@ -271,7 +296,7 @@ export function install({ user, a, key, balance, fileUrl }) {
     ${icloud ? '' : `<li><b>1</b><div><h3>Open the download</h3><p>Tap the download arrow in Safari’s address bar, then tap <strong>${e(a.name)}</strong>. It opens in Shortcuts.</p></div></li>`}
     <li><b>${icloud ? 1 : 2}</b><div><h3>Paste when asked</h3><p>Shortcuts shows the shortcut with a box for your key. Tap it, paste, then tap <strong>Add Shortcut</strong>.</p></div></li>
     <li><b>${icloud ? 2 : 3}</b><div><h3>Run it</h3><p>${e(a.runTip)}</p></div></li>
-    <li><b>${icloud ? 3 : 4}</b><div><h3>Keep it topped up</h3><p>${balance > 0 ? `You have ${formatUsd(balance)} of credit, enough for about ${runs.toLocaleString('en-US')} runs of this shortcut.` : 'Your balance is empty, so add a little credit before the first run.'} <a href="/account#balance">${balance > 0 ? 'See your balance' : 'Top up'}</a></p></div></li>
+    <li><b>${icloud ? 3 : 4}</b><div><h3>Keep it topped up</h3><p>${balance > 0 ? `You have ${formatUsd(balance)} of credit.` : 'Your balance is empty, so add a little credit before the first run.'} <a href="/account#balance">${balance > 0 ? 'See your balance' : 'Top up'}</a></p></div></li>
   </ol>
   <p class="small muted center desktop-only">On a computer? Open iphoneadvanced.com on your iPhone and tap Get there instead.</p>
 </section>
@@ -304,7 +329,7 @@ export function appConnect({ user, state }) {
 export function pricing({ user, appMode = false }) {
   const rows = Object.entries(MODELS).map(([id, m]) => {
     const p = retailPrice(id);
-    return `<tr><td><strong>${e(m.label)}</strong><div class="small muted">${id}</div></td><td class="num">$${p.input.toFixed(2)}</td><td class="num">$${p.output.toFixed(2)}</td></tr>`;
+    return `<tr><td><strong>${e(m.tier)}</strong></td><td class="num">$${p.input.toFixed(2)}</td><td class="num">$${p.output.toFixed(2)}</td></tr>`;
   }).join('');
   return layout({
     title: 'Pricing',
@@ -314,21 +339,16 @@ export function pricing({ user, appMode = false }) {
     body: `
 <section class="wrap page-head center">
   <h1>Simple pricing</h1>
-  <p class="lede">Automations are free. AI usage comes out of a balance you top up. No subscription, and credit never expires.</p>
+  <p class="lede">Pay only for the AI your blocks and shortcuts use, from a balance you top up. Credit never expires.</p>
 </section>
 <section class="wrap narrow">
-  <div class="stats">
-    <div><b>$0</b><p>for every automation</p></div>
-    <div><b>&lt;1¢</b><p>typical run</p></div>
-    <div><b>$5</b><p>smallest top-up</p></div>
-  </div>
   <div class="panel">
     <h2>Per-token rates</h2>
     <table class="table">
-      <thead><tr><th>Model</th><th class="num">Input / 1M tokens</th><th class="num">Output / 1M tokens</th></tr></thead>
+      <thead><tr><th>AI</th><th class="num">Input / 1M tokens</th><th class="num">Output / 1M tokens</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p class="small muted">A typical run uses a few hundred tokens. Top-ups: ${TOPUP_AMOUNTS.map((d) => `$${d}`).join(', ')}.</p>
+    <p class="small muted">Top-ups: ${TOPUP_AMOUNTS.map((d) => `$${d}`).join(', ')}.</p>
   </div>
 </section>`,
   });
@@ -340,12 +360,11 @@ const PROVIDER_LOGOS = {
   apple: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>',
 };
 
-export function authPage({ mode, error, email = '', next = '', providers = [], starterMicros = 0 }) {
+export function authPage({ mode, error, email = '', next = '', providers = [] }) {
   const appMode = next.startsWith('/app/connect');
   if (appMode && !providers.some(p => p.id === 'apple')) providers = [];
   const isLogin = mode === 'login';
   const getting = AUTOMATIONS.find((a) => next === `/automations/${a.slug}/install`);
-  const credit = starterMicros && providers.length ? ` Sign in with ${providers.map((p) => p.name).join(' or ')} and start with ${starterCents(starterMicros)} of free credit.` : '';
   const nextQuery = next ? `?next=${encodeURIComponent(next)}` : '';
   const social = providers.length ? `
     <div class="oauth">${providers.map((p) => `
@@ -361,7 +380,7 @@ export function authPage({ mode, error, email = '', next = '', providers = [], s
   <div class="auth-tiles" aria-hidden="true">${(getting ? [getting] : AUTOMATIONS.slice(0, 4)).map((a) => `<span class="mini c-${a.color}">${icon(a.icon)}</span>`).join('')}</div>
   <form class="auth-card" method="post" action="/${mode}">
     <h1>${getting ? `Get ${e(getting.name)}` : isLogin ? 'Welcome back' : 'Create your account'}</h1>
-    <p class="muted">${getting ? `Sign in once and it’s yours.${credit}` : isLogin ? 'Log in to manage your balance and shortcuts.' : `Every shortcut is free.${credit}`}</p>
+    <p class="muted">${getting ? 'Sign in once and it’s yours.' : isLogin ? 'Log in to manage your balance and blocks.' : 'Add AI blocks to your Shortcuts and pay only for what you use.'}</p>
     ${error ? `<p class="alert" role="alert">${e(error)}</p>` : ''}${social}
     <input type="hidden" name="next" value="${e(next)}">
     <label>Email<input name="email" type="email" autocomplete="email" required value="${e(email)}"></label>
@@ -386,7 +405,7 @@ export function account({ user, keys, history, linked = [], newKey, notice, bill
       <span class="mini c-violet">${icon('key')}</span>
       <div class="grow"><strong>${e(k.name)}</strong><div class="small muted">${e(k.prefix)}… · created ${date(k.created_at)}${k.last_used_at ? ` · last used ${date(k.last_used_at)}` : ''}</div></div>
       <form method="post" action="/account/keys/${k.id}/revoke"><input type="hidden" name="csrf" value="${e(user.csrf)}"><button class="btn btn-soft btn-sm" type="submit">Revoke</button></form>
-    </li>`).join('') : '<li class="muted small empty">Nothing added yet. <a href="/automations">Browse shortcuts</a> and tap Get.</li>';
+    </li>`).join('') : '<li class="muted small empty">Nothing added yet. <a href="/automations">Browse blocks</a> and tap Get.</li>';
   const historyRows = history.length ? history.map((h) => `
     <tr><td>${date(h.created_at)}</td><td>${e(h.description)}</td><td class="num ${h.amount_micros > 0 ? 'pos' : ''}">${h.amount_micros > 0 ? '+' : '−'}${formatUsd(Math.abs(h.amount_micros), Math.abs(h.amount_micros) < 10_000 ? 4 : 2)}</td></tr>`).join('')
     : '<tr><td colspan="3" class="muted small">Nothing yet. Top up to get started.</td></tr>';
@@ -443,5 +462,5 @@ export function account({ user, keys, history, linked = [], newKey, notice, bill
 
 export const notFound = ({ user }) => layout({
   title: 'Not found', user,
-  body: '<section class="wrap page-head center"><h1>Nothing here</h1><p class="lede">That page does not exist. <a href="/automations">Browse shortcuts</a>.</p></section>',
+  body: '<section class="wrap page-head center"><h1>Nothing here</h1><p class="lede">That page does not exist. <a href="/automations">Browse blocks</a>.</p></section>',
 });

@@ -179,7 +179,9 @@ test('a new Google account gets starter credit once, and the Get flow lands on t
   const { req, signIn, db } = await boot();
   const fake = fakeProviders();
   const next = '/automations/summarize-anything/install';
-  assert.match(await (await req(`/signup?next=${encodeURIComponent(next)}`)).text(), /Get Summarize This[\s\S]*25¢ of free credit/);
+  const signup = await (await req(`/signup?next=${encodeURIComponent(next)}`)).text();
+  assert.match(signup, /Get Summarize This/);
+  assert.doesNotMatch(signup, /free credit/);
   let res = await signIn('google', { sub: 'g-9', email: 'fresh@example.com', email_verified: true }, fake, { next });
   assert.equal(res.headers.get('location'), next);
   const balance = () => db.raw.prepare('SELECT balance_micros AS b FROM users').get().b;

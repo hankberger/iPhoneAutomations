@@ -197,7 +197,7 @@ app.post('/api/v1/run/:slug', async (c) => {
     result = await (a.makesImage ? inference.makeImage(user, a, body) : a.picksChoice ? inference.pickChoice(user, a, body) : inference.runAutomation(user, a, body));
   }
   const { status, json } = result;
-  if (status === 402) return c.json({ ...json, error: 'You’re out of credit. Tap OK to top up. Most runs cost under a cent.', action_url: `${appUrl}/account#balance` }, 402);
+  if (status === 402) return c.json({ ...json, error: 'You’re out of credit. Tap OK to top up.', action_url: `${appUrl}/account#balance` }, 402);
   if (status !== 200) return c.json({ ...json, error: json.error === 'Model provider rejected the request.' ? 'The AI couldn’t answer that one. Please try again in a moment.' : json.error, action_url: page }, status);
   return c.json(json);
 });
@@ -270,9 +270,8 @@ app.use(loadUser);
 
 // Pages
 // Starter credit only goes to Google and Apple sign-ins, so only mention it when they are on.
-const starter = (c) => (Object.keys(c.get('ctx').oauth).length ? c.get('ctx').starterMicros : 0);
 
-app.get('/', (c) => c.html(views.landing({ user: c.get('user'), starterMicros: starter(c) })));
+app.get('/', (c) => c.html(views.landing({ user: c.get('user') })));
 app.get('/automations', (c) => {
   const q = c.req.query('category');
   const category = CATEGORIES.includes(q) ? q : '';
@@ -281,7 +280,7 @@ app.get('/automations', (c) => {
 app.get('/automations/:slug', (c) => {
   const a = findAutomation(c.req.param('slug'));
   if (!a) return c.html(views.notFound({ user: c.get('user') }), 404);
-  return c.html(views.automationDetail({ user: c.get('user'), a, apiUrl: c.get('ctx').apiUrl, starterMicros: starter(c) }));
+  return c.html(views.automationDetail({ user: c.get('user'), a, apiUrl: c.get('ctx').apiUrl }));
 });
 // Creates a key for this shortcut and hands it over with the signed file. Keys are only stored
 // hashed, so each visit makes a new one; the page is never cached.
@@ -330,10 +329,10 @@ app.get('/support', (c) => c.html(legal.support({ user: c.get('user') })));
 
 // Auth
 for (const mode of ['login', 'signup']) {
-  app.get(`/${mode}`, (c) => (c.get('user') ? c.redirect(safeNext(c.req.query('next')), 302) : c.html(views.authPage({ mode, next: c.req.query('next'), providers: providerList(c), starterMicros: starter(c) }))));
+  app.get(`/${mode}`, (c) => (c.get('user') ? c.redirect(safeNext(c.req.query('next')), 302) : c.html(views.authPage({ mode, next: c.req.query('next'), providers: providerList(c) }))));
   app.post(`/${mode}`, async (c) => {
     const body = (await readForm(c)) ?? {};
-    const render = (status, error) => c.html(views.authPage({ mode, error, email: body.email, next: body.next, providers: providerList(c), starterMicros: starter(c) }), status);
+    const render = (status, error) => c.html(views.authPage({ mode, error, email: body.email, next: body.next, providers: providerList(c) }), status);
     if (!authLimit(c.req.header('cf-connecting-ip') || 'local')) return render(429, 'Too many attempts. Wait a few minutes and try again.');
     const creds = validateCredentials(body.email, body.password);
     if (creds.error) return render(400, mode === 'login' ? 'That email and password do not match.' : creds.error);
@@ -409,18 +408,22 @@ app.on(['GET', 'POST'], '/auth/:provider/callback', async (c) => {
 // its URL scheme. `state` is the app's own nonce, echoed back so it can match the reply.
 const APP_CALLBACK = 'iphoneadvanced://connect';
 const appState = (s) => (typeof s === 'string' && /^[\w-]{16,64}$/.test(s) ? s : null);
+// form-action is enforced by the page that holds the form, including where its POST redirects,
+// so the Connect page itself has to allow the app's scheme. Set on the redirect alone, browsers
+// block the hop to iphoneadvanced:// and the Connect button looks dead.
+const APP_CONNECT_CSP = SECURITY_HEADERS['Content-Security-Policy'].replace("form-action 'self'", "form-action 'self' iphoneadvanced:");
 app.get('/app/connect', requireUser, (c) => {
   const state = appState(c.req.query('state'));
   if (!state) return c.html(views.notFound({ user: c.get('user') }), 404);
   c.header('Cache-Control', 'no-store');
+  c.header('Content-Security-Policy', APP_CONNECT_CSP);
   return c.html(views.appConnect({ user: c.get('user'), state }));
 });
 app.post('/app/connect', requireUser, async (c) => {
   const state = appState(c.get('form').state);
   if (!state) return c.text('That sign-in link expired. Go back to the app and try again.', 400);
   const key = await c.get('ctx').auth.createApiKey(c.get('user').id, 'iPhone app', { canMint: true });
-  // form-action also covers where the form redirects, so let this one reach the app.
-  c.header('Content-Security-Policy', SECURITY_HEADERS['Content-Security-Policy'].replace("form-action 'self'", "form-action 'self' iphoneadvanced:"));
+  c.header('Content-Security-Policy', APP_CONNECT_CSP);
   return c.redirect(`${APP_CALLBACK}?${new URLSearchParams({ key, state })}`, 303);
 });
 
