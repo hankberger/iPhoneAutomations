@@ -156,7 +156,7 @@ app.post('/api/v1/run/:slug', async (c) => {
     result = await (a.makesImage ? inference.makeImage(user, a, body) : a.picksChoice ? inference.pickChoice(user, a, body) : inference.runAutomation(user, a, body));
   }
   const { status, json } = result;
-  if (status === 402) return c.json({ ...json, error: 'You’re out of credit. Tap OK to top up. Most runs cost under a cent.', action_url: `${appUrl}/account#balance` }, 402);
+  if (status === 402) return c.json({ ...json, error: 'You’re out of credit. Tap OK to top up.', action_url: `${appUrl}/account#balance` }, 402);
   if (status !== 200) return c.json({ ...json, error: json.error === 'Model provider rejected the request.' ? 'The AI couldn’t answer that one. Please try again in a moment.' : json.error, action_url: page }, status);
   return c.json(json);
 });
