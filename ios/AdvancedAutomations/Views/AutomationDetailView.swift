@@ -44,7 +44,8 @@ struct AutomationDetailView: View {
 
                 RelatedAutomationsSection(automation: automation)
             }
-            .padding(20)
+            .padding(.horizontal)
+            .padding(.vertical, 20)
             .frame(maxWidth: 640, alignment: .leading)
             .frame(maxWidth: .infinity)
         }

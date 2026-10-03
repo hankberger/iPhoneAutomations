@@ -56,8 +56,8 @@ struct WelcomeView: View {
                     .multilineTextAlignment(.center)
 
                 HStack(spacing: 16) {
-                    Button("Terms") { openURL(API.page("app/terms")) }
-                    Button("Privacy") { openURL(API.page("app/privacy")) }
+                    Button("Terms") { openURL(API.page("terms")) }
+                    Button("Privacy") { openURL(API.page("privacy")) }
                 }
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
@@ -67,10 +67,11 @@ struct WelcomeView: View {
         .padding(24)
         .frame(maxWidth: 520)
         .frame(maxWidth: .infinity)
+        }
+        // On the ScrollView, not its content, so the gradient reaches under the status bar.
         .background {
             LinearGradient(colors: [Theme.color("violet").opacity(0.18), .clear], startPoint: .top, endPoint: .center)
                 .ignoresSafeArea()
-        }
         }
     }
 

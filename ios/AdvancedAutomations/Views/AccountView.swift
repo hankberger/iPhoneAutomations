@@ -70,8 +70,8 @@ struct AccountView: View {
                 SwiftUI.Section {
                     NavigationLink("AI Privacy") { AIPrivacyView() }
                     Link("Contact Support", destination: URL(string: "mailto:support@iphoneadvanced.com")!)
-                    Button("Terms of Service") { openURL(API.page("app/terms")) }
-                    Button("Privacy Policy") { openURL(API.page("app/privacy")) }
+                    Button("Terms of Service") { openURL(API.page("terms")) }
+                    Button("Privacy Policy") { openURL(API.page("privacy")) }
                 }
             }
             .navigationTitle("Account")

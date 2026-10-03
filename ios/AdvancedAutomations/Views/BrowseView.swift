@@ -25,6 +25,7 @@ struct BrowseView: View {
 
                     if !isSearching && category == nil {
                         SectionHeader(title: "Start here", subtitle: "Useful automations you can install in a tap")
+                            .padding(.horizontal)
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(alignment: .top, spacing: 12) {
@@ -33,8 +34,8 @@ struct BrowseView: View {
                                         .buttonStyle(.plain)
                                 }
                             }
-                            .padding(.horizontal)
                         }
+                        .contentMargins(.horizontal, 16, for: .scrollContent)
                     }
 
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -44,8 +45,8 @@ struct BrowseView: View {
                                 Chip(title: c, selected: category == c) { category = c }
                             }
                         }
-                        .padding(.horizontal)
                     }
+                    .contentMargins(.horizontal, 16, for: .scrollContent)
 
                     if results.isEmpty {
                         ContentUnavailableView.search(text: searchText.isEmpty ? "these filters" : searchText)
