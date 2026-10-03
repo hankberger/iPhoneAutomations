@@ -21,7 +21,7 @@ npm run dev:local                # http://localhost:8787, local D1
 npm test
 ```
 
-`npm run dev:local` keeps everything local and calls Workers AI over the REST API with `CLOUDFLARE_API_TOKEN` from `.dev.vars` (a token with Workers AI: Read is enough). `npm run dev` uses the real AI binding through Wrangler's remote proxy instead, which needs `wrangler login` with Workers edit access.
+`npm run dev:local` keeps everything local (including a local copy of the waitlist table from `scripts/waitlist-local.sql`) and calls Workers AI over the REST API with `CLOUDFLARE_API_TOKEN` from `.dev.vars` (a token with Workers AI: Read is enough). `npm run dev` uses the real AI binding through Wrangler's remote proxy instead, which needs `wrangler login` with Workers edit access.
 
 The site runs without any keys. Top-up buttons and the API show a "not configured" state until they are set.
 
@@ -66,7 +66,8 @@ admin-access regression tests.
 
 ```bash
 npx wrangler login
-# D1 database advanced-automations already exists; its id is in wrangler.jsonc
+# D1 database advanced-automations already exists; its id is in wrangler.jsonc.
+# WAITLIST_DB binds the shared waitlist database; its schema is managed outside this repo.
 npm run db:migrate:remote
 npx wrangler secret put STRIPE_SECRET_KEY
 npx wrangler secret put STRIPE_WEBHOOK_SECRET   # from the Stripe dashboard webhook endpoint
