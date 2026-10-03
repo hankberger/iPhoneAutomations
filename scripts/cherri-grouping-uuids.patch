@@ -1,0 +1,23 @@
+diff --git a/parser.go b/parser.go
+index 8e88d5b..5736ead 100644
+--- a/parser.go
++++ b/parser.go
+@@ -1515,11 +1515,17 @@ func collectEndStatement() {
+ 	addNothing()
+ }
+ 
++var groupCount = 0
++
+ // groupStatement creates a grouping UUID for a statement and adds to the statement groupings.
+ func groupStatement(groupType tokenType, identifier *string) controlFlowGroup {
+ 	groupingIdx++
++	// Salt with a running count: most statements have no output name, and derived UUIDs
++	// would otherwise give every if, menu and repeat in a shortcut the same GroupingIdentifier.
++	groupCount++
++	var salt = fmt.Sprintf("%s#group%d", *identifier, groupCount)
+ 	controlFlowGroups[groupingIdx] = controlFlowGroup{
+-		uuid:       createUUID(identifier),
++		uuid:       createUUID(&salt),
+ 		identifier: *identifier,
+ 		groupType:  groupType,
+ 	}

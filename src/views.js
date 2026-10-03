@@ -257,7 +257,7 @@ export function automationDetail({ user, a, apiUrl }) {
       <ol class="mini-steps">
         <li>Tap <strong>${user ? 'Add to Shortcuts' : 'Get it'}</strong>${user ? '' : ' and sign in'}.</li>
         <li>We copy a key for this shortcut to your clipboard and open the Shortcuts app.</li>
-        <li>When Shortcuts asks for your key, paste it and tap <strong>Add Shortcut</strong>.</li>
+        <li>Tap <strong>Add Shortcut</strong>, then paste the key the first time you run it.</li>
       </ol>
       <details class="dev">
         <summary>Call it from your own code</summary>
@@ -283,7 +283,7 @@ export function install({ user, a, key, balance, fileUrl }) {
   <div class="install-card c-${a.color}">
     <span class="big-ic">${icon(a.icon)}</span>
     <h1>Add ${e(a.name)}</h1>
-    <p class="muted">${icloud ? 'One tap copies your key and opens Shortcuts.' : 'One tap copies your key and downloads the shortcut. Open the download and Shortcuts takes over.'} When it asks for the key, paste it and tap Add Shortcut.</p>
+    <p class="muted">${icloud ? 'One tap copies your key and opens Shortcuts.' : 'One tap copies your key and downloads the shortcut. Open the download and Shortcuts takes over.'} Tap Add Shortcut, and paste the key the first time you run it.</p>
     <div class="keybox">
       <span class="small muted">Your key for this shortcut</span>
       <code id="key">${e(key)}</code>
@@ -294,7 +294,7 @@ export function install({ user, a, key, balance, fileUrl }) {
 
   <ol class="install-steps">
     ${icloud ? '' : `<li><b>1</b><div><h3>Open the download</h3><p>Tap the download arrow in Safari’s address bar, then tap <strong>${e(a.name)}</strong>. It opens in Shortcuts.</p></div></li>`}
-    <li><b>${icloud ? 1 : 2}</b><div><h3>Paste when asked</h3><p>Shortcuts shows the shortcut with a box for your key. Tap it, paste, then tap <strong>Add Shortcut</strong>.</p></div></li>
+    <li><b>${icloud ? 1 : 2}</b><div><h3>Add it, then paste once</h3><p>Tap <strong>Add Shortcut</strong>. The first time it runs, it asks for your key: paste it and tap Done. Every Advanced Automations shortcut shares it, so you only do this once.</p></div></li>
     <li><b>${icloud ? 2 : 3}</b><div><h3>Run it</h3><p>${e(a.runTip)}</p></div></li>
     <li><b>${icloud ? 3 : 4}</b><div><h3>Keep it topped up</h3><p>${balance > 0 ? `You have ${formatUsd(balance)} of credit.` : 'Your balance is empty, so add a little credit before the first run.'} <a href="/account#balance">${balance > 0 ? 'See your balance' : 'Top up'}</a></p></div></li>
   </ol>

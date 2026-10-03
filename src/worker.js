@@ -181,7 +181,8 @@ app.post('/api/v1/run/:slug', async (c) => {
   const a = findAutomation(c.req.param('slug'));
   if (!a) return c.json({ error: 'This shortcut has been retired. Tap OK to find its replacement.', action_url: `${appUrl}/automations` }, 404);
   const page = `${appUrl}/automations/${a.slug}`;
-  if (!user) return c.json({ error: 'This shortcut’s key isn’t working. Tap OK to add it again with a fresh key.', action_url: page }, 401);
+  // key_invalid tells the shortcut to forget its saved key, so the next run asks for a new one.
+  if (!user) return c.json({ error: 'Your key isn’t working. Tap OK to get a fresh one, then run this again and paste it.', action_url: `${appUrl}/account#keys`, key_invalid: true }, 401);
   if (!hasAIConsent(user)) { const result = consentRequired(appUrl); return c.json(result.json, result.status); }
   let result;
   if (a.audio) {
