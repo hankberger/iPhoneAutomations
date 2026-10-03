@@ -1,6 +1,6 @@
 {
-  "sourceSHA256": "cb15149acbe594cbd24158b538383be79855464ba896cf6796bfbbb61389c5c9",
-  "signedSHA256": "3823de9471dc1391404831f53a51f0c194d53e377840c0318513292d6be15e4f",
+  "sourceSHA256": "32de29c76743fcdfdf9d4149c8c1865dc0724ea5c501911d917b9fd6a9417332",
+  "signedSHA256": "7d02c667ac0ccfd1741eb8a1aaa22c783dc01378d75b45ba1725a352d1694f17",
   "workflow": {
     "WFQuickActionSurfaces": [],
     "WFWorkflowActions": [
@@ -131,12 +131,32 @@
         }
       },
       {
-        "WFWorkflowActionIdentifier": "is.workflow.actions.documentpicker.open",
+        "WFWorkflowActionIdentifier": "is.workflow.actions.filter.notes",
         "WFWorkflowActionParameters": {
-          "CustomOutputName": "savedKey",
-          "UUID": "e0e7b079-fb6a-56e9-8926-bebe139bbd6a",
-          "WFFileErrorIfNotFound": false,
-          "WFGetFilePath": "advanced-automations-key.txt"
+          "CustomOutputName": "keyNotes",
+          "UUID": "919d4a9a-f2a6-5fe8-b997-22fd980c81e5",
+          "WFContentItemFilter": {
+            "Value": {
+              "WFActionParameterFilterPrefix": 1,
+              "WFActionParameterFilterTemplates": [
+                {
+                  "Operator": 4,
+                  "Property": "Name",
+                  "Removable": true,
+                  "Values": {
+                    "String": "Advanced Automations key",
+                    "Unit": 4
+                  }
+                }
+              ],
+              "WFContentPredicateBoundedDate": false
+            },
+            "WFSerializationType": "WFContentPredicateTableTemplate"
+          },
+          "WFContentItemLimitEnabled": true,
+          "WFContentItemLimitNumber": 1,
+          "WFContentItemSortOrder": "Latest First",
+          "WFContentItemSortProperty": "Creation Date"
         }
       },
       {
@@ -144,19 +164,7 @@
         "WFWorkflowActionParameters": {
           "CustomOutputName": "Text",
           "UUID": "bfd35fee-74fc-5bbe-8704-1452ea9f503d",
-          "WFTextActionText": {
-            "Value": {
-              "attachmentsByRange": {
-                "{0, 1}": {
-                  "OutputName": "savedKey",
-                  "OutputUUID": "e0e7b079-fb6a-56e9-8926-bebe139bbd6a",
-                  "Type": "ActionOutput"
-                }
-              },
-              "string": "￼"
-            },
-            "WFSerializationType": "WFTextTokenString"
-          }
+          "WFTextActionText": ""
         }
       },
       {
@@ -175,9 +183,148 @@
         }
       },
       {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "Text 1",
+          "UUID": "b816559b-da5c-5912-a869-ffa71abce72c",
+          "WFTextActionText": {
+            "Value": {
+              "attachmentsByRange": {
+                "{0, 1}": {
+                  "OutputName": "keyNotes",
+                  "OutputUUID": "919d4a9a-f2a6-5fe8-b997-22fd980c81e5",
+                  "Type": "ActionOutput"
+                }
+              },
+              "string": "￼"
+            },
+            "WFSerializationType": "WFTextTokenString"
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
+        "WFWorkflowActionParameters": {
+          "WFInput": {
+            "Value": {
+              "OutputName": "Text 1",
+              "OutputUUID": "b816559b-da5c-5912-a869-ffa71abce72c",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          },
+          "WFSerializationType": "WFTextTokenAttachment",
+          "WFVariableName": "noteText"
+        }
+      },
+      {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
           "GroupingIdentifier": "7ea1b7ca-0ef2-5074-807b-36ed1848076e",
+          "WFCondition": 99,
+          "WFConditionalActionString": "aa_live_",
+          "WFControlFlowMode": 0,
+          "WFInput": {
+            "Type": "Variable",
+            "Variable": {
+              "Value": {
+                "Type": "Variable",
+                "VariableName": "noteText"
+              },
+              "WFSerializationType": "WFTextTokenAttachment"
+            }
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.text.match",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "keyMatches",
+          "UUID": "72fe30ab-b73c-5793-945e-aedcd7cf6c02",
+          "WFMatchTextPattern": "aa_live_[A-Za-z0-9_-]+",
+          "text": {
+            "Value": {
+              "attachmentsByRange": {
+                "{0, 1}": {
+                  "Type": "Variable",
+                  "VariableName": "noteText"
+                }
+              },
+              "string": "￼"
+            },
+            "WFSerializationType": "WFTextTokenString"
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getitemfromlist",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "noteKey",
+          "UUID": "ffb5c55a-f3d5-5f0c-b110-b9db4e9afe84",
+          "WFInput": {
+            "Value": {
+              "OutputName": "keyMatches",
+              "OutputUUID": "72fe30ab-b73c-5793-945e-aedcd7cf6c02",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          },
+          "WFItemSpecifier": "First Item"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+        "WFWorkflowActionParameters": {
+          "CustomOutputName": "Text 2",
+          "UUID": "f8ed1403-2c70-560d-b44e-f2a9bd2cab46",
+          "WFTextActionText": {
+            "Value": {
+              "attachmentsByRange": {
+                "{0, 1}": {
+                  "OutputName": "noteKey",
+                  "OutputUUID": "ffb5c55a-f3d5-5f0c-b110-b9db4e9afe84",
+                  "Type": "ActionOutput"
+                }
+              },
+              "string": "￼"
+            },
+            "WFSerializationType": "WFTextTokenString"
+          }
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
+        "WFWorkflowActionParameters": {
+          "WFInput": {
+            "Value": {
+              "OutputName": "Text 2",
+              "OutputUUID": "f8ed1403-2c70-560d-b44e-f2a9bd2cab46",
+              "Type": "ActionOutput"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          },
+          "WFSerializationType": "WFTextTokenAttachment",
+          "WFVariableName": "storedKey"
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.nothing"
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+          "GroupingIdentifier": "7ea1b7ca-0ef2-5074-807b-36ed1848076e",
+          "UUID": "4812636f-ec95-541f-adaf-21394d428b1c",
+          "WFControlFlowMode": 2
+        }
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.nothing"
+      },
+      {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+          "GroupingIdentifier": "3f0332be-7d13-5660-a8b2-69c32e30fedd",
           "WFCondition": 999,
           "WFConditionalActionString": "aa_live_",
           "WFControlFlowMode": 0,
@@ -203,8 +350,8 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
         "WFWorkflowActionParameters": {
-          "CustomOutputName": "Text 1",
-          "UUID": "b816559b-da5c-5912-a869-ffa71abce72c",
+          "CustomOutputName": "Text 3",
+          "UUID": "0b980b2a-a385-5897-8ee4-e6efa6d462ff",
           "WFTextActionText": {
             "Value": {
               "attachmentsByRange": {
@@ -225,8 +372,8 @@
         "WFWorkflowActionParameters": {
           "WFInput": {
             "Value": {
-              "OutputName": "Text 1",
-              "OutputUUID": "b816559b-da5c-5912-a869-ffa71abce72c",
+              "OutputName": "Text 3",
+              "OutputUUID": "0b980b2a-a385-5897-8ee4-e6efa6d462ff",
               "Type": "ActionOutput"
             },
             "WFSerializationType": "WFTextTokenAttachment"
@@ -238,8 +385,8 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
         "WFWorkflowActionParameters": {
-          "CustomOutputName": "Text 2",
-          "UUID": "f8ed1403-2c70-560d-b44e-f2a9bd2cab46",
+          "CustomOutputName": "Text 4",
+          "UUID": "5dfb1da1-49b9-5918-8f28-7ae06c1a3e6e",
           "WFTextActionText": ""
         }
       },
@@ -248,8 +395,8 @@
         "WFWorkflowActionParameters": {
           "WFInput": {
             "Value": {
-              "OutputName": "Text 2",
-              "OutputUUID": "f8ed1403-2c70-560d-b44e-f2a9bd2cab46",
+              "OutputName": "Text 4",
+              "OutputUUID": "5dfb1da1-49b9-5918-8f28-7ae06c1a3e6e",
               "Type": "ActionOutput"
             },
             "WFSerializationType": "WFTextTokenAttachment"
@@ -261,7 +408,7 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
-          "GroupingIdentifier": "3f0332be-7d13-5660-a8b2-69c32e30fedd",
+          "GroupingIdentifier": "55d45407-85fc-574c-947d-ef05e77d7a70",
           "WFCondition": 99,
           "WFConditionalActionString": "aa_live_",
           "WFControlFlowMode": 0,
@@ -317,7 +464,7 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
-          "GroupingIdentifier": "3f0332be-7d13-5660-a8b2-69c32e30fedd",
+          "GroupingIdentifier": "55d45407-85fc-574c-947d-ef05e77d7a70",
           "UUID": "4812636f-ec95-541f-adaf-21394d428b1c",
           "WFControlFlowMode": 2
         }
@@ -347,11 +494,11 @@
         }
       },
       {
-        "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+        "WFWorkflowActionIdentifier": "is.workflow.actions.text.trimwhitespace",
         "WFWorkflowActionParameters": {
-          "CustomOutputName": "Text 3",
-          "UUID": "0b980b2a-a385-5897-8ee4-e6efa6d462ff",
-          "WFTextActionText": {
+          "CustomOutputName": "TrimWhitespace 1",
+          "UUID": "607a7ada-a181-55d6-a360-f65513c08a78",
+          "WFInput": {
             "Value": {
               "attachmentsByRange": {
                 "{0, 1}": {
@@ -371,8 +518,8 @@
         "WFWorkflowActionParameters": {
           "WFInput": {
             "Value": {
-              "OutputName": "Text 3",
-              "OutputUUID": "0b980b2a-a385-5897-8ee4-e6efa6d462ff",
+              "OutputName": "TrimWhitespace 1",
+              "OutputUUID": "607a7ada-a181-55d6-a360-f65513c08a78",
               "Type": "ActionOutput"
             },
             "WFSerializationType": "WFTextTokenAttachment"
@@ -382,18 +529,20 @@
         }
       },
       {
-        "WFWorkflowActionIdentifier": "is.workflow.actions.documentpicker.save",
+        "WFWorkflowActionIdentifier": "com.apple.mobilenotes.SharingExtension",
         "WFWorkflowActionParameters": {
-          "WFAskWhereToSave": false,
-          "WFFileDestinationPath": "advanced-automations-key.txt",
-          "WFInput": {
+          "WFCreateNoteInput": {
             "Value": {
-              "Type": "Variable",
-              "VariableName": "storedKey"
+              "attachmentsByRange": {
+                "{25, 1}": {
+                  "Type": "Variable",
+                  "VariableName": "storedKey"
+                }
+              },
+              "string": "Advanced Automations key\n￼"
             },
-            "WFSerializationType": "WFTextTokenAttachment"
-          },
-          "WFSaveFileOverwrite": true
+            "WFSerializationType": "WFTextTokenString"
+          }
         }
       },
       {
@@ -402,7 +551,7 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
-          "GroupingIdentifier": "7ea1b7ca-0ef2-5074-807b-36ed1848076e",
+          "GroupingIdentifier": "3f0332be-7d13-5660-a8b2-69c32e30fedd",
           "UUID": "4812636f-ec95-541f-adaf-21394d428b1c",
           "WFControlFlowMode": 2
         }
@@ -566,7 +715,7 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
-          "GroupingIdentifier": "55d45407-85fc-574c-947d-ef05e77d7a70",
+          "GroupingIdentifier": "004c4609-a865-52b3-b921-3d5686a98b2b",
           "WFCondition": 101,
           "WFControlFlowMode": 0,
           "WFInput": {
@@ -636,7 +785,7 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
-          "GroupingIdentifier": "004c4609-a865-52b3-b921-3d5686a98b2b",
+          "GroupingIdentifier": "c77eb039-749c-54da-aba1-53d3441cd991",
           "WFCondition": 100,
           "WFControlFlowMode": 0,
           "WFInput": {
@@ -653,41 +802,9 @@
         }
       },
       {
-        "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+        "WFWorkflowActionIdentifier": "com.apple.mobilenotes.SharingExtension",
         "WFWorkflowActionParameters": {
-          "CustomOutputName": "Text 4",
-          "UUID": "5dfb1da1-49b9-5918-8f28-7ae06c1a3e6e",
-          "WFTextActionText": "reset"
-        }
-      },
-      {
-        "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
-        "WFWorkflowActionParameters": {
-          "WFInput": {
-            "Value": {
-              "OutputName": "Text 4",
-              "OutputUUID": "5dfb1da1-49b9-5918-8f28-7ae06c1a3e6e",
-              "Type": "ActionOutput"
-            },
-            "WFSerializationType": "WFTextTokenAttachment"
-          },
-          "WFSerializationType": "WFTextTokenAttachment",
-          "WFVariableName": "cleared"
-        }
-      },
-      {
-        "WFWorkflowActionIdentifier": "is.workflow.actions.documentpicker.save",
-        "WFWorkflowActionParameters": {
-          "WFAskWhereToSave": false,
-          "WFFileDestinationPath": "advanced-automations-key.txt",
-          "WFInput": {
-            "Value": {
-              "Type": "Variable",
-              "VariableName": "cleared"
-            },
-            "WFSerializationType": "WFTextTokenAttachment"
-          },
-          "WFSaveFileOverwrite": true
+          "WFCreateNoteInput": "Advanced Automations key\nThis key stopped working. The next run asks for a new one."
         }
       },
       {
@@ -696,7 +813,7 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
-          "GroupingIdentifier": "004c4609-a865-52b3-b921-3d5686a98b2b",
+          "GroupingIdentifier": "c77eb039-749c-54da-aba1-53d3441cd991",
           "UUID": "4812636f-ec95-541f-adaf-21394d428b1c",
           "WFControlFlowMode": 2
         }
@@ -752,7 +869,7 @@
       {
         "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
         "WFWorkflowActionParameters": {
-          "GroupingIdentifier": "55d45407-85fc-574c-947d-ef05e77d7a70",
+          "GroupingIdentifier": "004c4609-a865-52b3-b921-3d5686a98b2b",
           "UUID": "4812636f-ec95-541f-adaf-21394d428b1c",
           "WFControlFlowMode": 2
         }

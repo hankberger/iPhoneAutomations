@@ -1,0 +1,54 @@
+diff --git a/raw_actions.go b/raw_actions.go
+index 0c2291b..3ebd58a 100644
+--- a/raw_actions.go
++++ b/raw_actions.go
+@@ -56,6 +56,11 @@ func normalizeRawActionParamValue(value any) any {
+ 		}
+ 		return attachmentValues(v)
+ 	case map[string]any:
++		// {"$plist": ...} passes its value through untouched, for parameters such as
++		// content filters that have no Cherri syntax.
++		if verbatim, ok := v["$plist"]; ok && len(v) == 1 {
++			return integralNumbers(verbatim)
++		}
+ 		// {"Magnitude": ..., "Unit": "..."} is a quantity, as Log Health Sample takes.
+ 		if magnitude, ok := v["Magnitude"]; ok && len(v) == 2 {
+ 			if unit, ok := v["Unit"].(string); ok {
+@@ -92,3 +97,23 @@ func makeRawActionArrayValue(value []any) WFArrayValue {
+ 	}
+ 	return makeArrayValue(items)
+ }
++
++// integralNumbers turns whole float64s back into ints, so plist writes <integer> where
++// Shortcuts expects one (JSON-style dictionary literals parse every number as a float).
++func integralNumbers(value any) any {
++	switch v := value.(type) {
++	case float64:
++		if v == float64(int64(v)) {
++			return int64(v)
++		}
++	case map[string]any:
++		for key, item := range v {
++			v[key] = integralNumbers(item)
++		}
++	case []any:
++		for i, item := range v {
++			v[i] = integralNumbers(item)
++		}
++	}
++	return value
++}
+diff --git a/shortcutgen.go b/shortcutgen.go
+index 5f7cf4a..28de57d 100644
+--- a/shortcutgen.go
++++ b/shortcutgen.go
+@@ -208,6 +208,9 @@ func makeVariableValue(reference *WFActionReference, valueType tokenType, value
+ 		var valuePtr = *value
+ 		var action = valuePtr.(action)
+ 		setCurrentAction(action.ident, actions[action.ident])
++		if action.ident == "rawAction" && len(action.args) > 0 {
++			currentAction.definition.overrideIdentifier = getArgValue(action.args[0]).(string)
++		}
+ 		makeAction(action.args, reference)
+ 	case Dict:
+ 		addStdAction("dictionary", attachReferenceToParams(map[string]any{
