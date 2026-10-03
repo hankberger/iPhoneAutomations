@@ -31,6 +31,7 @@
         }
       ],
       "typicalCost": 0.001109,
+      "icloudUrl": "https://www.icloud.com/shortcuts/60c7f7cc56d143c6950bdc048f254a1c",
       "block": true,
       "tags": [
         "text",
@@ -69,6 +70,7 @@
         }
       ],
       "typicalCost": 0.001893,
+      "icloudUrl": "https://www.icloud.com/shortcuts/f2d01f47d8c544f19ee2cf8aec0a8ddf",
       "block": true,
       "tags": [
         "photo",
@@ -107,6 +109,7 @@
         }
       ],
       "typicalCost": 0.003826,
+      "icloudUrl": "https://www.icloud.com/shortcuts/94dd8d80defd42999e7dcce6d0453b99",
       "block": true,
       "tags": [
         "voice",
@@ -144,6 +147,7 @@
         }
       ],
       "typicalCost": 0.000714,
+      "icloudUrl": "https://www.icloud.com/shortcuts/fe32f34ae194411196c218742ab3e848",
       "block": true,
       "tags": [
         "extract",
@@ -177,6 +181,7 @@
         }
       ],
       "typicalCost": 0.000032,
+      "icloudUrl": "https://www.icloud.com/shortcuts/ec83ee7a92fe404b8b22e3ad943a62f3",
       "block": true,
       "tags": [
         "classify",
@@ -214,6 +219,7 @@
         }
       ],
       "typicalCost": 0.00915,
+      "icloudUrl": "https://www.icloud.com/shortcuts/e4420630924f442387169174122871c3",
       "block": true,
       "tags": [
         "create",
