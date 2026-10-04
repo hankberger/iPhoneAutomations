@@ -56,15 +56,26 @@ final class CatalogStore: ObservableObject {
 
     private static let cacheURL = URL.cachesDirectory.appending(path: "catalog.json")
 
+    // Website-only shortcuts. Log My Meal writes AI estimates to Apple Health, which App Review
+    // treats as inaccurate health data (5.1.3), so the app doesn't offer it.
+    private static let hiddenInApp: Set<String> = ["snap-calories"]
+
     init() {
-        catalog = Self.load(Self.cacheURL) ?? Self.load(Bundle.main.url(forResource: "catalog", withExtension: "json")) ?? Catalog(categories: [], automations: [])
+        catalog = Self.visible(Self.load(Self.cacheURL) ?? Self.load(Bundle.main.url(forResource: "catalog", withExtension: "json")) ?? Catalog(categories: [], automations: []))
     }
 
     func refresh() async {
         guard let data = try? await API.shared.catalogData(),
               let fresh = try? JSONDecoder().decode(Catalog.self, from: data) else { return }
-        catalog = fresh
+        catalog = Self.visible(fresh)
         try? data.write(to: Self.cacheURL, options: .atomic)
+    }
+
+    private static func visible(_ catalog: Catalog) -> Catalog {
+        var c = catalog
+        c.automations.removeAll { hiddenInApp.contains($0.slug) }
+        c.categories.removeAll { category in !c.automations.contains { $0.category == category } }
+        return c
     }
 
     func automations(in category: String?) -> [Automation] {
