@@ -2,7 +2,7 @@
 #define glyph tag
 
 // Called from another shortcut with one item, or with a List: what to work on first,
-// your instructions last.
+// your instructions last. Anything missing is asked for.
 @content = ShortcutInput
 @instructions = ""
 const items = count(ShortcutInput)
@@ -12,7 +12,9 @@ if items > 1 {
     @instructions = getText(last)
 }
 if !ShortcutInput {
-    @content = getClipboard()
+    @content = prompt("What should I sort? For example, paste an email or a note.")
+}
+if !@instructions {
     @instructions = prompt("Which categories? For example: Work, Personal, Errands")
 }
 const input = getText(@content)

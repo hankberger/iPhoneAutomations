@@ -169,7 +169,7 @@
       "icon": "tag",
       "color": "blue",
       "trigger": "Run Shortcut",
-      "runTip": "Add Run Shortcut to your own shortcut and pick this one. Pass it one item, or a List with what to work on first and your instructions last. Example: a List of an email and \"Urgent: needs action today, Needs reply, FYI\", then If Shortcut Result is Urgent.",
+      "runTip": "Add Run Shortcut to your own shortcut and pick this one. Pass it one item, or a List with what to work on first and your instructions last. Example: a List of an email and \"Urgent: needs action today, Needs reply, FYI\", then If Shortcut Result is Urgent. Run on its own, it asks what to sort and which categories to use.",
       "inside": [
         {
           "action": "Ask Advanced Automations",
@@ -181,7 +181,6 @@
         }
       ],
       "typicalCost": 0.000032,
-      "icloudUrl": "https://www.icloud.com/shortcuts/ec83ee7a92fe404b8b22e3ad943a62f3",
       "block": true,
       "tags": [
         "classify",
