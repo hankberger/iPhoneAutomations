@@ -12,6 +12,7 @@ struct WelcomeView: View {
     @State private var error: String?
 
     var body: some View {
+        GeometryReader { proxy in
         ScrollView {
         VStack(alignment: .leading, spacing: 0) {
             Spacer(minLength: 24)
@@ -66,9 +67,12 @@ struct WelcomeView: View {
         }
         .padding(24)
         .frame(maxWidth: 520)
-        .frame(maxWidth: .infinity)
+        // Natural height, centered vertically when the screen is taller than the content.
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, minHeight: proxy.size.height)
         }
-        // On the ScrollView, not its content, so the gradient reaches under the status bar.
+        }
+        // Outside the scrolling content, so the gradient reaches under the status bar.
         .background {
             LinearGradient(colors: [Theme.color("violet").opacity(0.18), .clear], startPoint: .top, endPoint: .center)
                 .ignoresSafeArea()

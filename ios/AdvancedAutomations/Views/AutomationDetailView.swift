@@ -55,6 +55,12 @@ struct AutomationDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    // Catalog copy is shared with the website and is written for iPhone.
+    private static func forThisDevice(_ text: String) -> String {
+        guard UIDevice.current.userInterfaceIdiom == .pad else { return text }
+        return text.replacingOccurrences(of: "your iPhone", with: "your iPad").replacingOccurrences(of: "your phone", with: "your iPad")
+    }
+
     // The installed shortcut's actions. Blocks skip this: their steps describe the Run Shortcut
     // version, not the native action.
     private var steps: some View {
@@ -68,7 +74,7 @@ struct AutomationDetailView: View {
                             .background(Theme.color(automation.color).opacity(0.15), in: Circle())
                         VStack(alignment: .leading, spacing: 2) {
                             Text(step.action).fontWeight(.semibold)
-                            if let detail = step.detail { Text(detail).foregroundStyle(.secondary) }
+                            if let detail = step.detail { Text(Self.forThisDevice(detail)).foregroundStyle(.secondary) }
                         }
                     }
                 }
