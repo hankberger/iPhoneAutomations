@@ -24,7 +24,7 @@ struct WelcomeView: View {
                 Text("AI actions for Shortcuts")
                     .font(.display(40))
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Ask questions, read photos, transcribe audio and more, right inside the Shortcuts app. Most runs cost under a cent.")
+                Text("Ask questions, read photos, transcribe audio and more, right inside the Shortcuts app.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

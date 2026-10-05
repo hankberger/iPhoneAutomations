@@ -53,7 +53,7 @@ struct AccountView: View {
                 }
                 } else {
                     SwiftUI.Section {
-                        Text("Sign in to run AI actions and manage your credit. You can browse the library without an account.")
+                        Text("Sign in to run AI actions and manage your credit. You can browse the AI actions without an account.")
                         Button(signingIn ? "Signing in…" : "Sign in or create account") {
                             Task {
                                 signingIn = true

@@ -7,7 +7,7 @@ The app is **not ready to submit** while any release gate below remains open.
 
 | Area | Current evidence | Release gate |
 | --- | --- | --- |
-| Browse without an account | Welcome → Browse without an account; native library tabs | Exercise on iPhone and iPad, including large text |
+| Browse without an account | Welcome → Browse without an account; AI Actions and Account tabs (v1 ships the building blocks only; ready-made shortcuts stay on the website) | Exercise on iPhone and iPad, including large text |
 | Native AI consent | Account → AI Privacy, named providers and data categories; both `API.run` overloads check consent before upload | Test sign-in, deny, allow, withdraw and different-account flows on device |
 | Downloaded shortcut consent | Account-level versioned consent gates every inference path; native/web approval; withdrawal blocks all keys | Test real installed shortcuts with denied and withdrawn permission |
 | Privacy manifest | Bundled `PrivacyInfo.xcprivacy`, no tracking, app-only UserDefaults reason | Generate archive privacy report and reconcile App Store Connect answers with production provider retention |
@@ -109,13 +109,13 @@ Concurrent analytics work appeared during this audit (`analytics_events`, curren
 - Support and privacy URLs must be public, complete and reachable. Provide reviewer contact details, not placeholders.
 - Complete the current age-rating questionnaire honestly for unrestricted AI responses, health references and web access. Do not guess a rating or use the terms' minimum age as the rating.
 - State that browsing/actions are free to install and AI execution consumes purchased credit. Avoid promising exact AI results or fixed per-run prices where tokens vary.
-- Take actual screenshots of the current app on required iPhone/iPad sizes. Include the library, action details, privacy controls and purchase experience. Use fictional data. Do not submit design mockups or only the login screen.
+- Take actual screenshots of the current app on required iPhone/iPad sizes. Include the AI Actions list, action details, privacy controls and purchase experience. Use fictional data. Do not submit design mockups or only the login screen.
 - Provide IAP display names, descriptions and review screenshots. Submit new products with the version. Complete Paid Apps agreements, tax and banking, and any required EU trader information.
 - Create a dedicated review account using the normal account flow; supply its credentials in App Store Connect's review fields, not in this file. Allow purchases in Apple's review sandbox for that account. Provide enough credit for all actions, including images/audio, and verify the backend is reachable.
 
 Draft review notes (update to match the finished release before submission):
 
-> The app provides native App Intents for Apple Shortcuts plus a curated library of installable shortcuts. Browse without an account from the welcome screen. Sign in using the review account to run AI actions and access the shared credit balance. Before running an action, open Account → AI Privacy and choose Allow AI data sharing. In Shortcuts, create a shortcut, select Advanced Automations, and add Ask AI. Input “Summarize this in one sentence” with a short sample text. The result is returned to the next action. The installed recipe catalog can also be inspected without executing it. [Add exact purchase and deletion paths only after implemented and tested.] Cloudflare processes AI input; image generation additionally uses OpenAI. Credits are consumables and do not expire. No public user-generated-content feed exists.
+> The app provides native App Intents (AI actions) for Apple Shortcuts. Browse without an account from the welcome screen. Sign in using the review account to run AI actions and access the shared credit balance. Before running an action, open Account → AI Privacy and choose Allow AI data sharing. In Shortcuts, create a shortcut, select Advanced Automations, and add Ask AI. Input “Summarize this in one sentence” with a short sample text. The result is returned to the next action. [Add exact purchase and deletion paths only after implemented and tested.] Cloudflare processes AI input; image generation additionally uses OpenAI. Credits are consumables and do not expire. No public user-generated-content feed exists.
 
 ## Final release tests
 

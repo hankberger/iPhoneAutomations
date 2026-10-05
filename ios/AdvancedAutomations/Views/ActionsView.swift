@@ -25,7 +25,7 @@ struct ActionsView: View {
 
                     SectionHeader(title: searchText.isEmpty ? "Building blocks" : "Matching blocks", subtitle: "These show up as actions under Advanced Automations in Shortcuts")
                     LazyVGrid(columns: columns, spacing: 14) {
-                        ForEach(catalog.matching(searchText, blocksOnly: true)) { a in
+                        ForEach(catalog.matching(searchText)) { a in
                             NavigationLink(value: a) { AutomationCard(automation: a) }
                                 .buttonStyle(.plain)
                         }
