@@ -7,7 +7,7 @@ The app is **not ready to submit** while any release gate below remains open.
 
 | Area | Current evidence | Release gate |
 | --- | --- | --- |
-| Browse without an account | Welcome → Browse without an account; native library tabs | Exercise on iPhone and iPad, including large text |
+| Browse without an account | Welcome → Browse without an account; AI Actions and Account tabs (v1 ships the building blocks only; ready-made shortcuts stay on the website) | Exercise on iPhone and iPad, including large text |
 | Native AI consent | Account → AI Privacy, named providers and data categories; both `API.run` overloads check consent before upload | Test sign-in, deny, allow, withdraw and different-account flows on device |
 | Downloaded shortcut consent | Account-level versioned consent gates every inference path; native/web approval; withdrawal blocks all keys | Test real installed shortcuts with denied and withdrawn permission |
 | Privacy manifest | Bundled `PrivacyInfo.xcprivacy`, no tracking, app-only UserDefaults reason | Generate archive privacy report and reconcile App Store Connect answers with production provider retention |
@@ -17,10 +17,10 @@ The app is **not ready to submit** while any release gate below remains open.
 | External checkout links | Native StoreKit and key/history screens replace web links; app-safe legal/auth pages; direct shortcut downloads | Audit all success/error/auth/install links on device and each supported storefront |
 | Login | Web authentication supports email, Apple and Google | Configure and test Apple in production whenever Google is offered; preserve return to app after account linking |
 | Support | In-app support email and public `/support` page | Deploy and verify the page; confirm `support@iphoneadvanced.com` is monitored |
-| Health-related shortcuts | Decided October 4, 2026: Log My Meal is website-only. The app hides it from its catalog and the privacy manifest no longer declares Health data | Confirm on device that it appears nowhere in the app, including related-shortcut lists |
+| Health-related shortcuts | Decided October 4, 2026: Log My Meal is website-only. The app hides it from its catalog and the privacy manifest no longer declares Health data | Confirmed in the iPhone simulator on October 4, 2026: absent from Browse, every category, searches, AI Actions and every related-shortcut list. Recheck on a device before submission |
 | Export compliance | `ITSAppUsesNonExemptEncryption = NO` for system HTTPS/keychain/hash usage | Recheck if custom encryption or cryptography is added |
 | Review access | No reviewer-specific bypass | Create a real dedicated review account, fund it, provide credentials through App Store Connect and keep backend available |
-| Distribution | Bundle ID `com.iphoneadvanced.app`, iOS 17+; unsigned device archive built with Xcode 26.2 / iOS 26.2 SDK; explicit launch-screen metadata | Set development team; create a distribution-signed archive and validate in Xcode; configure App Store record, products, agreements, tax, banking and availability |
+| Distribution | Bundle ID `com.iphoneadvanced.app`, iOS 17+; development team `WY2FX658M4` with automatic signing; development-signed device archive builds; explicit launch-screen metadata | Create an Apple Distribution certificate and App Store provisioning profile (App Store export currently fails: no profiles for `com.iphoneadvanced.app`); create a distribution-signed archive and validate in Xcode; configure App Store record, products, agreements, tax, banking and availability |
 
 Payment/refund routes, encrypted Apple-token deletion, and the separately approved account-ID/Stripe-ledger safeguards are implemented locally. Migration 0009 retains previously issued numeric account IDs; both password and OAuth signup allocate above the permanent registry, and database triggers reject reuse or ID changes. Stripe fulfillment and AI settlement insert ledger rows only while the original account exists. Deletion remains disabled by default until the migration, matching code and release tests are complete. No production migration, deployment, App Store configuration, charge or live account deletion has been performed.
 
@@ -28,7 +28,7 @@ Local evidence: 51 Node tests pass, including compiled Health-action checks, pop
 
 Health estimates are not measurements. Confirmation and a disclaimer do not prove accuracy or satisfy Apple's prohibition on false or inaccurate HealthKit data (5.1.3(ii)). The new shortcut is a safety improvement, not evidence that this feature will pass review. Before release, document and validate its estimation methodology or make an explicit product decision to omit Health writes. Deploy the new signed artifact and recipe-version gate together; existing copies will need reinstalling.
 
-Packaging evidence: the Release simulator build and unsigned generic-iOS archive both pass after adding `UILaunchScreen` to the manually maintained Info.plist. The built device archive contains the launch-screen dictionary, iPhone/iPad icons and a syntactically valid bundled privacy manifest. Its `DTSDKName` is `iphoneos26.2` and `DTXcode` is `2620`, meeting Apple's current Xcode 26 / iOS 26 SDK minimum. This is not distribution signing, an App Store validation result or a generated privacy report; the project's development team is still unset.
+Packaging evidence: the Release simulator build and unsigned generic-iOS archive both pass after adding `UILaunchScreen` to the manually maintained Info.plist. The built device archive contains the launch-screen dictionary, iPhone/iPad icons and a syntactically valid bundled privacy manifest. Its `DTSDKName` is `iphoneos26.2` and `DTXcode` is `2620`, meeting Apple's current Xcode 26 / iOS 26 SDK minimum. This is not distribution signing, an App Store validation result or a generated privacy report; the development team is now set, but no Apple Distribution certificate or App Store profile exists yet.
 
 ## Payment decision
 
@@ -109,13 +109,13 @@ Concurrent analytics work appeared during this audit (`analytics_events`, curren
 - Support and privacy URLs must be public, complete and reachable. Provide reviewer contact details, not placeholders.
 - Complete the current age-rating questionnaire honestly for unrestricted AI responses, health references and web access. Do not guess a rating or use the terms' minimum age as the rating.
 - State that browsing/actions are free to install and AI execution consumes purchased credit. Avoid promising exact AI results or fixed per-run prices where tokens vary.
-- Take actual screenshots of the current app on required iPhone/iPad sizes. Include the library, action details, privacy controls and purchase experience. Use fictional data. Do not submit design mockups or only the login screen.
+- Take actual screenshots of the current app on required iPhone/iPad sizes. Include the AI Actions list, action details, privacy controls and purchase experience. Use fictional data. Do not submit design mockups or only the login screen.
 - Provide IAP display names, descriptions and review screenshots. Submit new products with the version. Complete Paid Apps agreements, tax and banking, and any required EU trader information.
 - Create a dedicated review account using the normal account flow; supply its credentials in App Store Connect's review fields, not in this file. Allow purchases in Apple's review sandbox for that account. Provide enough credit for all actions, including images/audio, and verify the backend is reachable.
 
 Draft review notes (update to match the finished release before submission):
 
-> The app provides native App Intents for Apple Shortcuts plus a curated library of installable shortcuts. Browse without an account from the welcome screen. Sign in using the review account to run AI actions and access the shared credit balance. Before running an action, open Account → AI Privacy and choose Allow AI data sharing. In Shortcuts, create a shortcut, select Advanced Automations, and add Ask AI. Input “Summarize this in one sentence” with a short sample text. The result is returned to the next action. The installed recipe catalog can also be inspected without executing it. [Add exact purchase and deletion paths only after implemented and tested.] Cloudflare processes AI input; image generation additionally uses OpenAI. Credits are consumables and do not expire. No public user-generated-content feed exists.
+> The app provides native App Intents (AI actions) for Apple Shortcuts. Browse without an account from the welcome screen. Sign in using the review account to run AI actions and access the shared credit balance. Before running an action, open Account → AI Privacy and choose Allow AI data sharing. In Shortcuts, create a shortcut, select Advanced Automations, and add Ask AI. Input “Summarize this in one sentence” with a short sample text. The result is returned to the next action. [Add exact purchase and deletion paths only after implemented and tested.] Cloudflare processes AI input; image generation additionally uses OpenAI. Credits are consumables and do not expire. No public user-generated-content feed exists.
 
 ## Final release tests
 

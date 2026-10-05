@@ -56,10 +56,6 @@ final class CatalogStore: ObservableObject {
 
     private static let cacheURL = URL.cachesDirectory.appending(path: "catalog.json")
 
-    // Website-only shortcuts. Log My Meal writes AI estimates to Apple Health, which App Review
-    // treats as inaccurate health data (5.1.3), so the app doesn't offer it.
-    private static let hiddenInApp: Set<String> = ["snap-calories"]
-
     init() {
         catalog = Self.visible(Self.load(Self.cacheURL) ?? Self.load(Bundle.main.url(forResource: "catalog", withExtension: "json")) ?? Catalog(categories: [], automations: []))
     }
@@ -71,23 +67,18 @@ final class CatalogStore: ObservableObject {
         try? data.write(to: Self.cacheURL, options: .atomic)
     }
 
+    // The app offers only the building blocks, as native Shortcuts actions. The ready-made
+    // shortcuts stay on the website.
     private static func visible(_ catalog: Catalog) -> Catalog {
         var c = catalog
-        c.automations.removeAll { hiddenInApp.contains($0.slug) }
+        c.automations.removeAll { !$0.isBlock }
         c.categories.removeAll { category in !c.automations.contains { $0.category == category } }
         return c
     }
 
-    func automations(in category: String?) -> [Automation] {
-        guard let category else { return catalog.automations.filter { !$0.isBlock } }
-        return catalog.automations.filter { $0.category == category }
-    }
-
-    func matching(_ text: String, in category: String? = nil, blocksOnly: Bool = false) -> [Automation] {
+    func matching(_ text: String) -> [Automation] {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return catalog.automations.filter { automation in
-            (!blocksOnly || automation.isBlock) &&
-            (category == nil || automation.category == category) &&
             (query.isEmpty || automation.searchableText.contains(query) || (automation.tags ?? []).contains { $0.lowercased().contains(query) })
         }
     }
@@ -100,15 +91,7 @@ final class CatalogStore: ObservableObject {
         (automation.pairWith ?? []).compactMap { self.automation(slug: $0) }
     }
 
-    var featured: [Automation] {
-        let preferred = ["summarize-anything", "smart-reminders", "voice-to-notes", "explain-this"]
-        return preferred.compactMap { automation(slug: $0) }
-    }
-
     var blocks: [Automation] { catalog.automations.filter(\.isBlock) }
-
-    // Categories for the browse filter; building blocks have their own tab.
-    var browseCategories: [String] { catalog.categories.filter { c in !blocks.contains { $0.category == c } } }
 
     private static func load(_ url: URL?) -> Catalog? {
         guard let url, let data = try? Data(contentsOf: url) else { return nil }

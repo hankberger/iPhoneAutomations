@@ -35,8 +35,6 @@ struct AdvancedAutomationsApp: App {
 
     private var tabs: some View {
         TabView {
-            BrowseView()
-                .tabItem { Label("Automations", systemImage: "square.grid.2x2") }
             ActionsView()
                 .tabItem { Label("AI Actions", systemImage: "sparkles") }
             AccountView()

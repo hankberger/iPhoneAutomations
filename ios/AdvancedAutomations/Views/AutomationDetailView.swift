@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct AutomationDetailView: View {
     var automation: Automation
@@ -13,7 +12,7 @@ struct AutomationDetailView: View {
                     Text(automation.name).font(.display(34))
                     Text(automation.tagline).font(.title3).foregroundStyle(.secondary)
                     HStack(spacing: 8) {
-                        Label(automation.isBlock ? "Shortcuts action" : automation.trigger, systemImage: automation.isBlock ? "square.stack.3d.up" : "hand.tap")
+                        Label("Shortcuts action", systemImage: "square.stack.3d.up")
                     }
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -32,13 +31,7 @@ struct AutomationDetailView: View {
                     }
                 }
 
-                if automation.isBlock {
-                    NativeActionSection(automation: automation)
-                } else {
-                    GetButton(automation: automation)
-                    Section(title: "How to run it") { Text(automation.runTip) }
-                    steps
-                }
+                NativeActionSection(automation: automation)
 
                 RelatedAutomationsSection(automation: automation)
             }
@@ -54,27 +47,6 @@ struct AutomationDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
     }
-
-    // The installed shortcut's actions. Blocks skip this: their steps describe the Run Shortcut
-    // version, not the native action.
-    private var steps: some View {
-        Section(title: "What’s inside") {
-            VStack(alignment: .leading, spacing: 14) {
-                ForEach(Array(automation.inside.enumerated()), id: \.offset) { i, step in
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text("\(i + 1)")
-                            .font(.footnote.weight(.bold))
-                            .frame(width: 24, height: 24)
-                            .background(Theme.color(automation.color).opacity(0.15), in: Circle())
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(step.action).fontWeight(.semibold)
-                            if let detail = step.detail { Text(detail).foregroundStyle(.secondary) }
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 private struct RelatedAutomationsSection: View {
@@ -84,7 +56,7 @@ private struct RelatedAutomationsSection: View {
     var body: some View {
         let related = catalog.related(to: automation)
         if !related.isEmpty {
-            Section(title: automation.isBlock ? "Good next steps" : "You might also like") {
+            Section(title: "Good next steps") {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(related) { item in
                         NavigationLink(value: item) {
@@ -144,64 +116,6 @@ private struct NativeActionSection: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .tint(.primary)
-        }
-    }
-}
-
-// Installs a shortcut the way the site's install page does: a fresh key on the clipboard, then
-// its iCloud link. The shortcut asks for the key on its first run. Shortcuts without an iCloud link can only
-// be imported from a downloaded file, which Safari hands over, so those go to the install page.
-private struct GetButton: View {
-    var automation: Automation
-    @EnvironmentObject private var session: Session
-    @Environment(\.openURL) private var openURL
-    @State private var working = false
-    @State private var status: String?
-
-    var body: some View {
-        VStack(spacing: 10) {
-            Button {
-                Task { await get() }
-            } label: {
-                HStack {
-                    if working { ProgressView().tint(Color(uiColor: .systemBackground)) }
-                    Text(automation.icloudUrl == nil ? "Get it in Safari" : "Get")
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(.primary)
-            .disabled(working)
-
-            Text(status ?? (automation.icloudUrl == nil
-                ? "Copies a key, then opens the shortcut file in Safari. Paste the key the first time you run it."
-                : "Copies a key and opens Shortcuts. Tap Add Shortcut, then paste the key the first time you run it."))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-    }
-
-    private func get() async {
-        guard session.isSignedIn else {
-            status = "Open the Account tab and sign in to add this shortcut."
-            return
-        }
-        guard AIConsent.isAllowed else {
-            status = "Open Account → AI Privacy and review data sharing before adding AI shortcuts."
-            return
-        }
-        working = true
-        defer { working = false }
-        do {
-            let key = try await API.shared.makeKey(named: automation.name)
-            // Kept off other devices, and kept long enough to reach the shortcut's first run.
-            UIPasteboard.general.setItems([[UTType.plainText.identifier: key]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(3600)])
-            status = "Key copied. Paste it when the shortcut first asks."
-            openURL(automation.icloudUrl ?? API.page("download/\(automation.slug)"))
-        } catch {
-            status = error.localizedDescription
         }
     }
 }
